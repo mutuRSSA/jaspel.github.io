@@ -293,21 +293,9 @@
                     </select>
                 </div>
                 
-                <div class="section-title">Analisis Risiko & Beban Kerja</div>
-                <div class="form-group"><label>Risiko Infeksi</label>
-                    <select id="k_risiko"><option value="Tidak ada">Tidak ada</option><option value="Rendah">Rendah</option><option value="Sedang">Sedang</option><option value="Tinggi">Tinggi</option></select>
-                </div>
-                <div class="form-group"><label>Radiasi</label>
-                    <select id="k_radiasi"><option value="Tidak ada">Tidak ada</option><option value="Rendah">Rendah</option><option value="Sedang">Sedang</option><option value="Tinggi">Tinggi</option></select>
-                </div>
-                <div class="form-group"><label>Emergensi</label>
-                    <select id="k_emergensi"><option value="Non Emergency">Non Emergency</option><option value="Emergency">Emergency</option></select>
-                </div>
+                <div class="section-title">Pola Kerja & Evaluasi Lanjutan</div>
                 <div class="form-group"><label>Pola Kerja</label>
                     <select id="k_pola_kerja"><option value="Non Rotasi">Non Rotasi</option><option value="Rotasi Sebagian">Rotasi Sebagian</option><option value="Rotasi Penuh">Rotasi Penuh</option></select>
-                </div>
-                <div class="form-group"><label>Oncall</label>
-                    <select id="k_oncall"><option value="Tidak">Tidak</option><option value="Ya">Ya</option></select>
                 </div>
                 
                 <div class="form-group"><label>Prestasi Kerja</label>
@@ -435,7 +423,7 @@
 <script>
     let dataKaryawan = [];
     let dataFiltered = [];
-    let isEditMode = true; // State penanda apakah Add Baru atau Edit
+    let isEditMode = true;
 
     async function loadData() {
         document.getElementById('bodyTabel').innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px;">Mengambil data dari Server...</td></tr>';
@@ -464,10 +452,8 @@
         const hideNonaktif = document.getElementById('hideNonaktif') ? document.getElementById('hideNonaktif').checked : false;
 
         dataFiltered = dataKaryawan.filter(k => {
-            // Filter 1: Sembunyikan yang nonaktif jika checkbox dicentang
             if (hideNonaktif && k.status === 'Nonaktif') return false;
             
-            // Filter 2: Pencarian Teks
             return String(k.nama||"").toLowerCase().includes(txt) || 
                    String(k.nik||"").toLowerCase().includes(txt) ||
                    String(k.unit||"").toLowerCase().includes(txt);
@@ -536,29 +522,24 @@
 
     function tutupModal() { document.getElementById('modalKaryawan').style.display = 'none'; }
 
-    // FUNGSI KHUSUS UNTUK TAMBAH KARYAWAN BARU
     function bukaModalBaru() {
         isEditMode = false;
         document.getElementById('modalTitle').innerText = "➕ Tambah Karyawan Baru";
         
-        // Kosongkan form
         document.querySelectorAll('#modalKaryawan input').forEach(input => input.value = '');
         document.querySelectorAll('#modalKaryawan select').forEach(select => select.value = '-');
         
-        // Set Default
         document.getElementById('k_produktivitas').value = "1";
         document.getElementById('k_disiplin').value = "1";
         document.getElementById('k_hukuman').value = "0";
         document.getElementById('k_status').value = "PNS";
         toggleGolongan();
 
-        // Buka Kunci NIK (karena mau input baru)
         let inputNik = document.getElementById('k_nik');
         inputNik.disabled = false;
         inputNik.style.background = "#fff";
         inputNik.placeholder = "Wajib masukkan 16 Digit NIK KTP...";
 
-        // Sembunyikan Tombol Hapus
         document.getElementById('btnHapus').style.display = "none";
         document.getElementById('modalKaryawan').style.display = 'block';
     }
@@ -570,7 +551,6 @@
         const k = dataKaryawan.find(x => x.nik == nik);
         if(!k) return;
         
-        // Kunci NIK (Mode Edit)
         let inputNik = document.getElementById('k_nik');
         inputNik.value = k.nik;
         inputNik.disabled = true;
@@ -633,11 +613,7 @@
         let optionExists = Array.from(jnsSelect.options).some(opt => opt.value === jnsData);
         jnsSelect.value = optionExists ? jnsData : "Tidak ada";
 
-        document.getElementById('k_risiko').value = k.risiko || "Tidak ada";
-        document.getElementById('k_radiasi').value = k.radiasi || "Tidak ada";
-        document.getElementById('k_emergensi').value = k.emergensi || "Non Emergency";
         document.getElementById('k_pola_kerja').value = k.pola_kerja || "Non Rotasi";
-        document.getElementById('k_oncall').value = k.oncall || "Tidak";
 
         let j1 = String(k.jab_tim1 || "").trim().toUpperCase();
         document.getElementById('k_jab_tim1').value = ["A","B","C","D"].includes(j1) ? j1 : "-";
@@ -648,7 +624,6 @@
         let j3 = String(k.jab_tim3 || "").trim().toUpperCase();
         document.getElementById('k_jab_tim3').value = ["A","B","C","D"].includes(j3) ? j3 : "-";
 
-        // Tampilkan Tombol Hapus (Hanya saat edit)
         document.getElementById('btnHapus').style.display = "block";
         document.getElementById('modalKaryawan').style.display = 'block';
     }
@@ -658,86 +633,90 @@
         const nikTarget = document.getElementById('k_nik').value;
         const statusPegawai = document.getElementById('k_status').value;
         
+        if(!nikTarget) { alert("⚠️ NIK wajib diisi!"); return; }
+
         const golonganFinal = statusPegawai === 'PNS' ? document.getElementById('k_golongan').value : 'Non-PNS';
         
         const getValueWithLainnya = (selectId, inputId) => {
-            const dropVal = document.getElementById(selectId).value;
+            const selectEl = document.getElementById(selectId);
+            if (!selectEl) return '';
+            const dropVal = selectEl.value;
             return dropVal === 'Lainnya' ? document.getElementById(inputId).value : (dropVal === '-' ? '' : dropVal);
         };
 
-        // --- AWAL LOGIKA SOFT DELETE ---
         let prodVal = Number(document.getElementById('k_produktivitas').value) || 0;
         let disVal = Number(document.getElementById('k_disiplin').value) || 0;
         let jabTim1Val = document.getElementById('k_jab_tim1').value === "-" ? "" : document.getElementById('k_jab_tim1').value;
         let jabTim2Val = document.getElementById('k_jab_tim2').value === "-" ? "" : document.getElementById('k_jab_tim2').value;
         let jabTim3Val = document.getElementById('k_jab_tim3').value === "-" ? "" : document.getElementById('k_jab_tim3').value;
 
-        // Jika Karyawan Nonaktif, Paksa Kinerja dan Tim Menjadi 0 / Kosong
         if (statusPegawai === "Nonaktif") {
             prodVal = 0;
             disVal = 0;
             jabTim1Val = "";
             jabTim2Val = "";
             jabTim3Val = "";
-            alert("⚠️ Sistem otomatis men-Nol-kan Produktivitas, Disiplin, dan Jabatan Tim untuk karyawan Nonaktif agar tidak menerima JTL bulan depan.");
+            alert("⚠️ Sistem otomatis men-Nol-kan Produktivitas, Disiplin, dan Jabatan Tim untuk karyawan Nonaktif.");
         }
-        // --- AKHIR LOGIKA SOFT DELETE ---
 
         const payload = {
+            nik: nikTarget,
             nip: document.getElementById('k_nip').value,
             nama: document.getElementById('k_nama').value,
             rekening: document.getElementById('k_rekening').value,
             golongan: golonganFinal,
-            
-            produktivitas: prodVal, // Menggunakan variabel yang sudah difilter
-            disiplin: disVal,       // Menggunakan variabel yang sudah difilter
+            produktivitas: prodVal,
+            disiplin: disVal,
             hukuman: Number(document.getElementById('k_hukuman').value) || 0,
-
             pendidikan: document.getElementById('k_pendidikan').value === '-' ? '' : document.getElementById('k_pendidikan').value,
             unit: document.getElementById('k_unit').value === '-' ? '' : document.getElementById('k_unit').value,
             tmt: document.getElementById('k_tmt').value === '-' ? '' : document.getElementById('k_tmt').value,
             prestasi: document.getElementById('k_prestasi').value === '-' ? '' : document.getElementById('k_prestasi').value,
-            
             status: statusPegawai,
             jab_non_struk: document.getElementById('k_jab_non_struk').value,
-            risiko: document.getElementById('k_risiko').value,
-            radiasi: document.getElementById('k_radiasi').value,
-            emergensi: document.getElementById('k_emergensi').value,
             pola_kerja: document.getElementById('k_pola_kerja').value,
-            oncall: document.getElementById('k_oncall').value,
-            
             jabatan: getValueWithLainnya('k_jabatan', 'k_jabatan_lainnya'),
             tim1: getValueWithLainnya('k_tim1', 'k_tim1_lainnya'),
             tim2: getValueWithLainnya('k_tim2', 'k_tim2_lainnya'),
             tim3: getValueWithLainnya('k_tim3', 'k_tim3_lainnya'),
-
-            jab_tim1: jabTim1Val, // Menggunakan variabel yang sudah difilter
-            jab_tim2: jabTim2Val, // Menggunakan variabel yang sudah difilter
-            jab_tim3: jabTim3Val  // Menggunakan variabel yang sudah difilter
+            jab_tim1: jabTim1Val,
+            jab_tim2: jabTim2Val,
+            jab_tim3: jabTim3Val
         };
+
+        btn.innerText = "⏳ Sedang Menyimpan..."; btn.disabled = true;
+
+        const actionCommand = isEditMode ? "update_karyawan" : "add_karyawan";
 
         try {
             const response = await fetch(WEB_APP_URL, {
                 method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify({ action: actionCommand, nik: nikTarget, payload: payload })
             });
+
+            if (!response.ok) throw new Error("Server menolak request (Status: " + response.status + ").");
+
             const res = await response.json();
-            alert("✅ " + res.message);
-            tutupModal();
-            loadData();
+            
+            if (res.status === "success") {
+                alert("✅ Berhasil: " + res.message);
+                tutupModal();
+                loadData();
+            } else {
+                alert("❌ Ditolak Sistem: " + res.message);
+            }
         } catch(e) {
-            alert("❌ Gagal menyimpan data. Periksa koneksi internet Anda.");
+            console.error("Error Detail:", e);
+            alert("❌ TERJADI KESALAHAN BROWSER:\n" + e.message + "\n\nPastikan Anda menekan tombol Refresh/F5 di browser.");
         } finally {
             btn.innerText = "💾 Simpan Perubahan"; btn.disabled = false;
         }
     }
 
-    // FUNGSI MENGHAPUS KARYAWAN
     async function hapusKaryawan() {
         const nikTarget = document.getElementById('k_nik').value;
         const namaTarget = document.getElementById('k_nama').value;
 
-        // Peringatan ganda karena berisiko
         if(!confirm(`⚠️ PERINGATAN: Anda yakin ingin MENGHAPUS PERMANEN data ${namaTarget} (${nikTarget})?\n\nSaran: Lebih baik ubah Status Kepegawaian menjadi "Nonaktif / Keluar" agar data sejarah Jaspel sebelumnya tidak rusak.`)) return;
         if(!confirm(`Data yang dihapus tidak bisa dikembalikan. Lanjutkan hapus?`)) return;
 
