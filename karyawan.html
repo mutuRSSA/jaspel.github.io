@@ -17,8 +17,10 @@
         th { background: #004085; color: white; }
         tr:hover { background-color: #f8f9fa; }
         
-        .btn { padding: 6px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn { padding: 6px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s;}
+        .btn:hover { filter: brightness(0.9); }
         .btn-refresh { background: #28a745; color: white; font-size: 13px;}
+        .btn-add { background: #007bff; color: white; font-size: 13px;}
         .btn-edit { background: #17a2b8; color: white; }
         
         /* Modal Style */
@@ -37,13 +39,11 @@
         .kinerja-item { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;}
         .k-hijau { color: #28a745; font-weight: bold; }
         .k-merah { color: #dc3545; font-weight: bold; }
+        .status-nonaktif { background: #dc3545 !important; color: white !important; }
     </style>
     <script>
-    // Proteksi Halaman: Cek apakah user sudah login
-    if (!localStorage.getItem("userRole")) {
-        window.location.href = "login.html"; // Tendang balik ke login jika belum ada role
-    }
-</script>
+    if (!localStorage.getItem("userRole")) { window.location.href = "login.html"; }
+    </script>
     <script src="config.js"></script>
 </head>
 <body>
@@ -51,7 +51,10 @@
 <div class="card">
     <div class="header">
         <h2 style="margin:0; color: #004085;">👥 Database Induk Karyawan</h2>
-        <button class="btn btn-refresh" style="padding:8px 15px;" onclick="loadData()">🔄 Segarkan Data</button>
+        <div>
+            <button class="btn btn-add" style="padding:8px 15px; margin-right: 5px;" onclick="bukaModalBaru()">➕ Tambah Karyawan</button>
+            <button class="btn btn-refresh" style="padding:8px 15px;" onclick="loadData()">🔄 Segarkan Data</button>
+        </div>
     </div>
 
     <div class="controls-container">
@@ -63,6 +66,9 @@
         </select>
         
         <input type="text" id="search" class="search-box" placeholder="Cari NIK, Nama, atau Unit..." onkeyup="debounceSearch()">
+        <label style="font-size:12px; margin-left:15px; cursor:pointer;">
+    <input type="checkbox" id="hideNonaktif" onchange="applyFilter()" checked> Sembunyikan Nonaktif
+</label>
     </div>
 
     <table>
@@ -84,12 +90,12 @@
 
 <div id="modalKaryawan" class="modal-overlay">
     <div class="modal-content">
-        <h3 style="margin-top:0; color:#004085; border-bottom: 2px solid #eee; padding-bottom:10px;">📋 Detail & Evaluasi Karyawan</h3>
+        <h3 id="modalTitle" style="margin-top:0; color:#004085; border-bottom: 2px solid #eee; padding-bottom:10px;">📋 Detail Karyawan</h3>
         
         <div class="modal-body">
             <div class="form-grid">
                 <div class="section-title">Identitas Dasar</div>
-                <div class="form-group"><label>NIK (ID Utama - Terkunci)</label><input type="text" id="k_nik" disabled style="background:#e9ecef;"></div>
+                <div class="form-group"><label>NIK (Wajib Diisi 16 Digit)</label><input type="text" id="k_nik" placeholder="Ketik NIK KTP..."></div>
                 <div class="form-group"><label>NIP</label><input type="text" id="k_nip"></div>
                 <div class="form-group"><label>Nama Lengkap & Gelar</label><input type="text" id="k_nama"></div>
                 <div class="form-group"><label>Nomor Rekening</label><input type="text" id="k_rekening" placeholder="Cth: 1234567890 (Bank BPD)"></div>
@@ -97,11 +103,11 @@
                 <div class="section-title highlight-section">⚖️ Penilaian Kinerja & Kedisiplinan Jaspel</div>
                 <div class="form-group">
                     <label>Produktivitas (Ketik 1 utk 100%, 0.8 utk 80%)</label>
-                    <input type="number" step="0.01" min="0" max="1" id="k_produktivitas">
+                    <input type="number" step="0.01" min="0" max="1" id="k_produktivitas" value="1">
                 </div>
                 <div class="form-group">
                     <label>Disiplin (Ketik 1 utk 100%, 0.5 utk 50%)</label>
-                    <input type="number" step="0.01" min="0" max="1" id="k_disiplin">
+                    <input type="number" step="0.01" min="0" max="1" id="k_disiplin" value="1">
                 </div>
                 <div class="form-group" style="grid-column: 1 / -1;">
                     <label>Sanksi Hukuman Berat</label>
@@ -113,10 +119,117 @@
                 </div>
 
                 <div class="section-title">Profesi & Posisi Utama</div>
-                <div class="form-group"><label>Pendidikan</label><input type="text" id="k_pendidikan"></div>
-                <div class="form-group"><label>Jabatan</label><input type="text" id="k_jabatan"></div>
-                <div class="form-group"><label>Unit</label><input type="text" id="k_unit"></div>
-                <div class="form-group"><label>TMT</label><input type="text" id="k_tmt"></div>
+                <div class="form-group"><label>Pendidikan</label>
+                    <select id="k_pendidikan">
+                        <option value="-">- Pilih Pendidikan -</option>
+                        <option value="SMP">SMP</option>
+                        <option value="SMA">SMA</option>
+                        <option value="D3">D3</option>
+                        <option value="D4/S1">D4/S1</option>
+                        <option value="S2">S2</option>
+                        <option value="Dokter Umum">Dokter Umum</option>
+                        <option value="Dokter Spesialis">Dokter Spesialis</option>
+                    </select>
+                </div>
+                
+                <div class="form-group"><label>Jabatan</label>
+                    <select id="k_jabatan" onchange="toggleLainnya('k_jabatan', 'k_jabatan_lainnya')">
+                        <option value="-">- Pilih Jabatan -</option>
+                        <option value="Direktur">Direktur</option>
+                        <option value="Kepala Seksi Pelayanan Medik dan Keperawatan">Kepala Seksi Pelayanan Medik dan Keperawatan</option>
+                        <option value="Kepala Seksi Pelayanan Penunjang">Kepala Seksi Pelayanan Penunjang</option>
+                        <option value="Kepala Sub Bagian Tata Usaha">Kepala Sub Bagian Tata Usaha</option>
+                        <option value="Dokter Spesialis Anak Ahli Muda">Dokter Spesialis Anak Ahli Muda</option>
+                        <option value="Apoteker Ahli Madya">Apoteker Ahli Madya</option>
+                        <option value="Perawat Penyelia">Perawat Penyelia</option>
+                        <option value="Perawat Pelaksana Lanjutan">Perawat Pelaksana Lanjutan</option>
+                        <option value="Analis Kesehatan Penyelia">Analis Kesehatan Penyelia</option>
+                        <option value="Bidan Penyelia">Bidan Penyelia</option>
+                        <option value="Bidan Pelaksana Lanjutan">Bidan Pelaksana Lanjutan</option>
+                        <option value="Asisten Apoteker Pelaksana Lanjutan">Asisten Apoteker Pelaksana Lanjutan</option>
+                        <option value="Dokter Ahli Madya">Dokter Ahli Madya</option>
+                        <option value="Perawat Ahli Muda">Perawat Ahli Muda</option>
+                        <option value="Radiografer Pelaksana Lanjutan">Radiografer Pelaksana Lanjutan</option>
+                        <option value="Dokter Umum">Dokter Umum</option>
+                        <option value="Dokter Spesialias Anestesi">Dokter Spesialias Anestesi</option>
+                        <option value="Dokter Spesialis Obsetri Ginekologi">Dokter Spesialis Obsetri Ginekologi</option>
+                        <option value="tenaga keperawatan">tenaga keperawatan</option>
+                        <option value="Perawat Terampil">Perawat Terampil</option>
+                        <option value="Tenaga Kebidanan">Tenaga Kebidanan</option>
+                        <option value="Tenaga Ahli teknik laboratorium">Tenaga Ahli teknik laboratorium</option>
+                        <option value="Perekam Medis">Perekam Medis</option>
+                        <option value="Farmasi">Farmasi</option>
+                        <option value="Gizi">Gizi</option>
+                        <option value="Tenaga Sterilisasi alat">Tenaga Sterilisasi alat</option>
+                        <option value="Tenaga teknis pemeliharaan sarpras">Tenaga teknis pemeliharaan sarpras</option>
+                        <option value="tenaga penjaga kantor">tenaga penjaga kantor</option>
+                        <option value="Tenaga Penunjang khusus">Tenaga Penunjang khusus</option>
+                        <option value="Pengemudi">Pengemudi</option>
+                        <option value="Kerumahtanggaan">Kerumahtanggaan</option>
+                        <option value="tenaga teknis dapur">tenaga teknis dapur</option>
+                        <option value="tenaga administrasi rumah sakit">tenaga administrasi rumah sakit</option>
+                        <option value="Dokter Spesialis Penyakit Dalam">Dokter Spesialis Penyakit Dalam</option>
+                        <option value="tenaga keteknisian medis">tenaga keteknisian medis</option>
+                        <option value="Perawat">Perawat</option>
+                        <option value="Dokter Spesialis Bedah">Dokter Spesialis Bedah</option>
+                        <option value="tenaga kesehatan lingkungan">tenaga kesehatan lingkungan</option>
+                        <option value="Asisten Apoteker">Asisten Apoteker</option>
+                        <option value="Radiografer">Radiografer</option>
+                        <option value="Front Office">Front Office</option>
+                        <option value="Analis Kesehatan">Analis Kesehatan</option>
+                        <option value="Dokter Spesialis Patologi Klinik">Dokter Spesialis Patologi Klinik</option>
+                        <option value="Dokter Ahli Pertama">Dokter Ahli Pertama</option>
+                        <option value="Perawat Ahli Pertama">Perawat Ahli Pertama</option>
+                        <option value="Bidan Terampil">Bidan Terampil</option>
+                        <option value="Bidan Ahli Pertama">Bidan Ahli Pertama</option>
+                        <option value="Pranata Laboratorium Kesehatan Terampil">Pranata Laboratorium Kesehatan Terampil</option>
+                        <option value="Perekam Medis Terampil">Perekam Medis Terampil</option>
+                        <option value="Asisten Apoteker Terampil">Asisten Apoteker Terampil</option>
+                        <option value="Radiografer Terampil">Radiografer Terampil</option>
+                        <option value="Dokter Radiologi">Dokter Radiologi</option>
+                        <option value="Penata Anestesi">Penata Anestesi</option>
+                        <option value="Dokter Spesialis Saraf">Dokter Spesialis Saraf</option>
+                        <option value="Fisioterapis">Fisioterapis</option>
+                        <option value="Lainnya">Lainnya (Ketik Manual)...</option>
+                    </select>
+                    <input type="text" id="k_jabatan_lainnya" placeholder="Ketik jabatan spesifik..." style="display:none; margin-top:5px; background-color:#e8f4f8; border:1px solid #007bff;">
+                </div>
+                
+                <div class="form-group"><label>Unit</label>
+                    <select id="k_unit">
+                        <option value="-">- Pilih Unit -</option>
+                        <option value="Farmasi">Farmasi</option>
+                        <option value="Poliklinik">Poliklinik</option>
+                        <option value="Truntum">Truntum</option>
+                        <option value="Laboratorium">Laboratorium</option>
+                        <option value="VK">VK</option>
+                        <option value="UGD">UGD</option>
+                        <option value="Radiologi">Radiologi</option>
+                        <option value="Kamar OK">Kamar OK</option>
+                        <option value="Rekam Medis">Rekam Medis</option>
+                        <option value="Gizi">Gizi</option>
+                        <option value="CSSD">CSSD</option>
+                        <option value="IPSRS">IPSRS</option>
+                        <option value="Keamanan">Keamanan</option>
+                        <option value="Driver">Driver</option>
+                        <option value="Kerumahtanggaan">Kerumahtanggaan</option>
+                        <option value="Dapur">Dapur</option>
+                        <option value="Kesling">Kesling</option>
+                        <option value="Perinatologi">Perinatologi</option>
+                        <option value="Parang">Parang</option>
+                    </select>
+                </div>
+                
+                <div class="form-group"><label>TMT (Terhitung Mulai)</label>
+                    <select id="k_tmt">
+                        <option value="-">- Pilih Masa Kerja -</option>
+                        <option value="0-3 bulan">0-3 bulan</option>
+                        <option value="3 bulan - 1 tahun">3 bulan - 1 tahun</option>
+                        <option value="1 - 1,5 tahun">1 - 1,5 tahun</option>
+                        <option value="1,5-2 tahun">1,5-2 tahun</option>
+                        <option value=">2 tahun">>2 tahun</option>
+                    </select>
+                </div>
                 
                 <div class="form-group"><label>Status Kepegawaian</label>
                     <select id="k_status" onchange="toggleGolongan()">
@@ -124,6 +237,7 @@
                         <option value="PPPK">PPPK</option>
                         <option value="Kontrak">Kontrak</option>
                         <option value="Tetap">Tetap</option>
+                        <option value="Nonaktif">Nonaktif / Keluar</option>
                     </select>
                 </div>
                 
@@ -138,7 +252,46 @@
                     </select>
                 </div>
 
-                <div class="form-group" style="grid-column: 1 / -1;"><label>Jabatan Non Struktural</label><input type="text" id="k_jab_non_struk"></div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Jabatan Non Struktural</label>
+                    <select id="k_jab_non_struk">
+                        <option value="Tidak ada">Tidak ada</option>
+                        <option value="Kepala Unit Gawat Darurat">Kepala Unit Gawat Darurat</option>
+                        <option value="PJ Unit Gawat Darurat">PJ Unit Gawat Darurat</option>
+                        <option value="Kepala Unit Rawat Jalan">Kepala Unit Rawat Jalan</option>
+                        <option value="PJ Unit Rawat Jalan">PJ Unit Rawat Jalan</option>
+                        <option value="Kepala Unit Rawat Inap">Kepala Unit Rawat Inap</option>
+                        <option value="PJ Unit Rawat Inap Parang dan Nitik">PJ Unit Rawat Inap Parang dan Nitik</option>
+                        <option value="PJ Unit Rawat Inap Truntum dan Sidomukti">PJ Unit Rawat Inap Truntum dan Sidomukti</option>
+                        <option value="Kepala Unit Kamar Bersalin">Kepala Unit Kamar Bersalin</option>
+                        <option value="PJ Unit Kamar Bersalin">PJ Unit Kamar Bersalin</option>
+                        <option value="Kepala Unit Perinatologi">Kepala Unit Perinatologi</option>
+                        <option value="PJ Unit Perinatologi">PJ Unit Perinatologi</option>
+                        <option value="Kepala Unit Kamar Operasi">Kepala Unit Kamar Operasi</option>
+                        <option value="PJ Unit Kamar Operasi">PJ Unit Kamar Operasi</option>
+                        <option value="Kepala Unit Rawat Intensif">Kepala Unit Rawat Intensif</option>
+                        <option value="PJ Unit Rawat Intensif">PJ Unit Rawat Intensif</option>
+                        <option value="Kepala Unit Laboratorium">Kepala Unit Laboratorium</option>
+                        <option value="PJ Unit Laboratorium">PJ Unit Laboratorium</option>
+                        <option value="Kepala Unit Radiologi">Kepala Unit Radiologi</option>
+                        <option value="PJ Unit Radiologi">PJ Unit Radiologi</option>
+                        <option value="Kepala Unit Farmasi">Kepala Unit Farmasi</option>
+                        <option value="Kepala Unit Rekam Medis">Kepala Unit Rekam Medis</option>
+                        <option value="Kepala Unit Gizi">Kepala Unit Gizi</option>
+                        <option value="Kepala Unit Kesehatan Lingkungan & Laundry">Kepala Unit Kesehatan Lingkungan & Laundry</option>
+                        <option value="Kepala Unit Pemeliharaan Sarana Rumah Sakit">Kepala Unit Pemeliharaan Sarana Rumah Sakit</option>
+                        <option value="Kepala Unit Sterilisasi Terpusat">Kepala Unit Sterilisasi Terpusat</option>
+                        <option value="Kepala Unit Pemulasaraan Jenazah">Kepala Unit Pemulasaraan Jenazah</option>
+                        <option value="Kepala Unit Keamanan">Kepala Unit Keamanan</option>
+                        <option value="Kepala Unit Pengemudi">Kepala Unit Pengemudi</option>
+                        <option value="Kepala Unit Kasir">Kepala Unit Kasir</option>
+                        <option value="Ketua Tim Kerja Keuangan & Aset">Ketua Tim Kerja Keuangan & Aset</option>
+                        <option value="Ketua Tim Kerja Pengadaan Barang & Jasa">Ketua Tim Kerja Pengadaan Barang & Jasa</option>
+                        <option value="Ketua Tim Kerja Perencanaan, Evaluasi, Administrasi Umum & Kepegawaian">Ketua Tim Kerja Perencanaan, Evaluasi, Administrasi Umum & Kepegawaian</option>
+                        <option value="Ketua Tim Kerja Promosi Kesehatan Rumah Sakit">Ketua Tim Kerja Promosi Kesehatan Rumah Sakit</option>
+                        <option value="Ketua Tim Kerja Penjaminan & Verifikasi">Ketua Tim Kerja Penjaminan & Verifikasi</option>
+                    </select>
+                </div>
                 
                 <div class="section-title">Analisis Risiko & Beban Kerja</div>
                 <div class="form-group"><label>Risiko Infeksi</label>
@@ -156,20 +309,124 @@
                 <div class="form-group"><label>Oncall</label>
                     <select id="k_oncall"><option value="Tidak">Tidak</option><option value="Ya">Ya</option></select>
                 </div>
-                <div class="form-group"><label>Prestasi Kerja</label><input type="text" id="k_prestasi"></div>
+                
+                <div class="form-group"><label>Prestasi Kerja</label>
+                    <select id="k_prestasi">
+                        <option value="-">- Pilih Prestasi -</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                        <option value="E">E</option>
+                    </select>
+                </div>
 
                 <div class="section-title">Kepanitiaan & Tim Tambahan</div>
-                <div class="form-group"><label>Nama Tim 1</label><input type="text" id="k_tim1"></div>
-                <div class="form-group"><label>Jabatan Tim 1</label><input type="text" id="k_jab_tim1"></div>
-                <div class="form-group"><label>Nama Tim 2</label><input type="text" id="k_tim2"></div>
-                <div class="form-group"><label>Jabatan Tim 2</label><input type="text" id="k_jab_tim2"></div>
-                <div class="form-group"><label>Nama Tim 3</label><input type="text" id="k_tim3"></div>
-                <div class="form-group"><label>Jabatan Tim 3</label><input type="text" id="k_jab_tim3"></div>
+                
+                <div class="form-group"><label>Nama Tim 1</label>
+                    <select id="k_tim1" onchange="toggleLainnya('k_tim1', 'k_tim1_lainnya')">
+                        <option value="-">- Tidak Ada -</option>
+                        <option value="Komite Medis">Komite Medis</option>
+                        <option value="Komite Keperawatan">Komite Keperawatan</option>
+                        <option value="Komite Kesehatan Lain">Komite Kesehatan Lain</option>
+                        <option value="Komite Etik dan Hukum">Komite Etik dan Hukum</option>
+                        <option value="Komite Mutu dan keselamatan pasien">Komite Mutu dan keselamatan pasien</option>
+                        <option value="Komite PPI">Komite PPI</option>
+                        <option value="Komite Farmasi dan Terapi">Komite Farmasi dan Terapi</option>
+                        <option value="Komite Rekam Medis">Komite Rekam Medis</option>
+                        <option value="Tim Casemix">Tim Casemix</option>
+                        <option value="Tim PIPP">Tim PIPP</option>
+                        <option value="Tim Surveillance Epidemiologi">Tim Surveillance Epidemiologi</option>
+                        <option value="BPJS Tenaga Kerja">BPJS Tenaga Kerja</option>
+                        <option value="Tim SIMRS">Tim SIMRS</option>
+                        <option value="PPR">PPR</option>
+                        <option value="Tim JP">Tim JP</option>
+                        <option value="Komite K3">Komite K3</option>
+                        <option value="Sekretariat Akreditasi">Sekretariat Akreditasi</option>
+                        <option value="Tim Apotek Online">Tim Apotek Online</option>
+                        <option value="TIM PPA DAN AKTA KELAHIRAN">TIM PPA DAN AKTA KELAHIRAN</option>
+                        <option value="Tim PPRA">Tim PPRA</option>
+                        <option value="Lainnya">Lainnya (Ketik Manual)...</option>
+                    </select>
+                    <input type="text" id="k_tim1_lainnya" placeholder="Ketik nama tim..." style="display:none; margin-top:5px; background-color:#e8f4f8; border:1px solid #007bff;">
+                </div>
+                <div class="form-group"><label>Kontribusi Tim 1</label>
+                    <select id="k_jab_tim1">
+                        <option value="-">- Tidak Ada -</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                    </select>
+                </div>
+                
+                <div class="form-group"><label>Nama Tim 2</label>
+                    <select id="k_tim2" onchange="toggleLainnya('k_tim2', 'k_tim2_lainnya')">
+                        <option value="-">- Tidak Ada -</option>
+                        <option value="Komite Medis">Komite Medis</option>
+                        <option value="Komite Keperawatan">Komite Keperawatan</option>
+                        <option value="Komite Kesehatan Lain">Komite Kesehatan Lain</option>
+                        <option value="Komite Etik dan Hukum">Komite Etik dan Hukum</option>
+                        <option value="Komite Mutu dan keselamatan pasien">Komite Mutu dan keselamatan pasien</option>
+                        <option value="Komite PPI">Komite PPI</option>
+                        <option value="Komite Farmasi dan Terapi">Komite Farmasi dan Terapi</option>
+                        <option value="Komite Rekam Medis">Komite Rekam Medis</option>
+                        <option value="Tim Casemix">Tim Casemix</option>
+                        <option value="Tim PIPP">Tim PIPP</option>
+                        <option value="Tim Surveillance Epidemiologi">Tim Surveillance Epidemiologi</option>
+                        <option value="BPJS Tenaga Kerja">BPJS Tenaga Kerja</option>
+                        <option value="Tim SIMRS">Tim SIMRS</option>
+                        <option value="PPR">PPR</option>
+                        <option value="Tim JP">Tim JP</option>
+                        <option value="Komite K3">Komite K3</option>
+                        <option value="Sekretariat Akreditasi">Sekretariat Akreditasi</option>
+                        <option value="Tim Apotek Online">Tim Apotek Online</option>
+                        <option value="TIM PPA DAN AKTA KELAHIRAN">TIM PPA DAN AKTA KELAHIRAN</option>
+                        <option value="Tim PPRA">Tim PPRA</option>
+                        <option value="Lainnya">Lainnya (Ketik Manual)...</option>
+                    </select>
+                    <input type="text" id="k_tim2_lainnya" placeholder="Ketik nama tim..." style="display:none; margin-top:5px; background-color:#e8f4f8; border:1px solid #007bff;">
+                </div>
+                <div class="form-group"><label>Kontribusi Tim 2</label>
+                    <select id="k_jab_tim2">
+                        <option value="-">- Tidak Ada -</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                    </select>
+                </div>
+
+                <div class="form-group"><label>Nama Tim 3</label>
+                    <select id="k_tim3" onchange="toggleLainnya('k_tim3', 'k_tim3_lainnya')">
+                        <option value="-">- Tidak Ada -</option>
+                        <option value="Komite Medis">Komite Medis</option>
+                        <option value="Komite Keperawatan">Komite Keperawatan</option>
+                        <option value="Komite Kesehatan Lain">Komite Kesehatan Lain</option>
+                        <option value="Komite Etik dan Hukum">Komite Etik dan Hukum</option>
+                        <option value="Komite Mutu dan keselamatan pasien">Komite Mutu dan keselamatan pasien</option>
+                        <option value="Komite PPI">Komite PPI</option>
+                        <option value="Komite Farmasi dan Terapi">Komite Farmasi dan Terapi</option>
+                        <option value="Komite Rekam Medis">Komite Rekam Medis</option>
+                        <option value="Tim Casemix">Tim Casemix</option>
+                        <option value="Tim PIPP">Tim PIPP</option>
+                        <option value="Tim Surveillance Epidemiologi">Tim Surveillance Epidemiologi</option>
+                        <option value="BPJS Tenaga Kerja">BPJS Tenaga Kerja</option>
+                        <option value="Tim SIMRS">Tim SIMRS</option>
+                        <option value="PPR">PPR</option>
+                        <option value="Tim JP">Tim JP</option>
+                        <option value="Komite K3">Komite K3</option>
+                        <option value="Sekretariat Akreditasi">Sekretariat Akreditasi</option>
+                        <option value="Tim Apotek Online">Tim Apotek Online</option>
+                        <option value="TIM PPA DAN AKTA KELAHIRAN">TIM PPA DAN AKTA KELAHIRAN</option>
+                        <option value="Tim PPRA">Tim PPRA</option>
+                        <option value="Lainnya">Lainnya (Ketik Manual)...</option>
+                    </select>
+                    <input type="text" id="k_tim3_lainnya" placeholder="Ketik nama tim..." style="display:none; margin-top:5px; background-color:#e8f4f8; border:1px solid #007bff;">
+                </div>
+                <div class="form-group"><label>Kontribusi Tim 3</label>
+                    <select id="k_jab_tim3">
+                        <option value="-">- Tidak Ada -</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                    </select>
+                </div>
             </div>
         </div>
 
         <div style="display:flex; gap:10px; border-top: 1px solid #eee; padding-top: 15px;">
-            <button class="btn btn-refresh" style="flex: 1; padding: 12px; font-size:14px;" id="btnSimpan" onclick="simpanKaryawan()">💾 Simpan Perubahan</button>
+            <button class="btn btn-refresh" style="flex: 2; padding: 12px; font-size:14px;" id="btnSimpan" onclick="simpanKaryawan()">💾 Simpan Perubahan</button>
+            <button id="btnHapus" class="btn" style="flex: 1; padding: 12px; font-size:14px; background:#dc3545; color:white; display:none;" onclick="hapusKaryawan()">🗑️ Hapus</button>
             <button class="btn" style="flex: 1; padding: 12px; font-size:14px; background:#ddd; color:#333;" onclick="tutupModal()">Batal</button>
         </div>
     </div>
@@ -178,6 +435,7 @@
 <script>
     let dataKaryawan = [];
     let dataFiltered = [];
+    let isEditMode = true; // State penanda apakah Add Baru atau Edit
 
     async function loadData() {
         document.getElementById('bodyTabel').innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px;">Mengambil data dari Server...</td></tr>';
@@ -201,16 +459,22 @@
         timerPencarian = setTimeout(applyFilter, 400); 
     }
 
-    function applyFilter() {
+   function applyFilter() {
         const txt = document.getElementById('search').value.toLowerCase();
+        const hideNonaktif = document.getElementById('hideNonaktif') ? document.getElementById('hideNonaktif').checked : false;
+
         dataFiltered = dataKaryawan.filter(k => {
+            // Filter 1: Sembunyikan yang nonaktif jika checkbox dicentang
+            if (hideNonaktif && k.status === 'Nonaktif') return false;
+            
+            // Filter 2: Pencarian Teks
             return String(k.nama||"").toLowerCase().includes(txt) || 
                    String(k.nik||"").toLowerCase().includes(txt) ||
                    String(k.unit||"").toLowerCase().includes(txt);
         });
         renderTableData();
     }
-
+    
     function renderTableData() {
         const body = document.getElementById('bodyTabel');
         const limitVal = document.getElementById('limitData').value;
@@ -227,13 +491,14 @@
                 let classDis = nilaiDis < 100 ? "k-merah" : "k-hijau";
                 
                 let badgeHukuman = k.hukuman > 0 ? `<span style="background:#dc3545; color:white; padding:2px 5px; border-radius:3px; font-size:10px; margin-top:4px; display:inline-block;">Sanksi ${k.hukuman * 100}%</span>` : "";
-                
+                let classStatus = k.status === 'Nonaktif' ? 'status-nonaktif' : '';
+
                 html += `<tr>
                     <td><strong style="color:#004085;">${k.nik}</strong><br><small style="color:#666;">${k.nip||'-'}</small></td>
                     <td style="font-weight:bold;">${k.nama} <br>${badgeHukuman}</td>
                     <td>${k.pendidikan}<br><small style="color:#007bff; font-weight:bold;">${k.jabatan}</small></td>
                     <td>${k.unit}</td>
-                    <td><span style="background:#e9ecef; padding:4px 8px; border-radius:4px; font-size:11px; font-weight:bold;">${k.status}</span></td>
+                    <td><span class="${classStatus}" style="background:#e9ecef; padding:4px 8px; border-radius:4px; font-size:11px; font-weight:bold;">${k.status}</span></td>
                     <td>
                         <div class="kinerja-box">
                             <div class="kinerja-item"><span>Prod:</span> <span class="${classProd}">${nilaiProd}%</span></div>
@@ -249,7 +514,6 @@
         body.innerHTML = html;
     }
 
-    // Fungsi Toggle Tampilan Golongan
     function toggleGolongan() {
         const stat = document.getElementById('k_status').value;
         const containerGolongan = document.getElementById('container_golongan');
@@ -259,14 +523,59 @@
             containerGolongan.style.display = 'none';
         }
     }
+    
+    function toggleLainnya(selectId, inputId) {
+        const selectElement = document.getElementById(selectId).value;
+        const inputElement = document.getElementById(inputId);
+        if(selectElement === "Lainnya") {
+            inputElement.style.display = 'block';
+        } else {
+            inputElement.style.display = 'none';
+        }
+    }
 
     function tutupModal() { document.getElementById('modalKaryawan').style.display = 'none'; }
 
+    // FUNGSI KHUSUS UNTUK TAMBAH KARYAWAN BARU
+    function bukaModalBaru() {
+        isEditMode = false;
+        document.getElementById('modalTitle').innerText = "➕ Tambah Karyawan Baru";
+        
+        // Kosongkan form
+        document.querySelectorAll('#modalKaryawan input').forEach(input => input.value = '');
+        document.querySelectorAll('#modalKaryawan select').forEach(select => select.value = '-');
+        
+        // Set Default
+        document.getElementById('k_produktivitas').value = "1";
+        document.getElementById('k_disiplin').value = "1";
+        document.getElementById('k_hukuman').value = "0";
+        document.getElementById('k_status').value = "PNS";
+        toggleGolongan();
+
+        // Buka Kunci NIK (karena mau input baru)
+        let inputNik = document.getElementById('k_nik');
+        inputNik.disabled = false;
+        inputNik.style.background = "#fff";
+        inputNik.placeholder = "Wajib masukkan 16 Digit NIK KTP...";
+
+        // Sembunyikan Tombol Hapus
+        document.getElementById('btnHapus').style.display = "none";
+        document.getElementById('modalKaryawan').style.display = 'block';
+    }
+
     function bukaModal(nik) {
+        isEditMode = true;
+        document.getElementById('modalTitle').innerText = "📋 Detail & Evaluasi Karyawan";
+
         const k = dataKaryawan.find(x => x.nik == nik);
         if(!k) return;
         
-        document.getElementById('k_nik').value = k.nik;
+        // Kunci NIK (Mode Edit)
+        let inputNik = document.getElementById('k_nik');
+        inputNik.value = k.nik;
+        inputNik.disabled = true;
+        inputNik.style.background = "#e9ecef";
+
         document.getElementById('k_nip').value = k.nip;
         document.getElementById('k_nama').value = k.nama;
         document.getElementById('k_rekening').value = k.rekening || "";
@@ -275,32 +584,72 @@
         document.getElementById('k_disiplin').value = k.disiplin;
         document.getElementById('k_hukuman').value = k.hukuman;
 
-        document.getElementById('k_pendidikan').value = k.pendidikan;
-        document.getElementById('k_jabatan').value = k.jabatan;
-        document.getElementById('k_unit').value = k.unit;
-        document.getElementById('k_tmt').value = k.tmt;
+        const setDropdownSafe = (id, value, fallback) => {
+            const el = document.getElementById(id);
+            let exists = Array.from(el.options).some(opt => opt.value === String(value).trim());
+            el.value = exists ? String(value).trim() : fallback;
+        };
+
+        setDropdownSafe('k_pendidikan', k.pendidikan, '-');
+        setDropdownSafe('k_unit', k.unit, '-');
+        setDropdownSafe('k_tmt', k.tmt, '-');
+        setDropdownSafe('k_prestasi', k.prestasi, '-'); 
+        
+        const setupFieldLainnya = (selectId, inputId, valData) => {
+            const selectEl = document.getElementById(selectId);
+            const inputEl = document.getElementById(inputId);
+            let val = String(valData || "").trim();
+            let exists = Array.from(selectEl.options).some(opt => opt.value === val);
+            
+            if (exists) {
+                selectEl.value = val;
+                inputEl.style.display = 'none';
+                inputEl.value = "";
+            } else if (val !== "" && val !== "-") {
+                selectEl.value = "Lainnya";
+                inputEl.style.display = 'block';
+                inputEl.value = val;
+            } else {
+                selectEl.value = "-";
+                inputEl.style.display = 'none';
+                inputEl.value = "";
+            }
+        };
+
+        setupFieldLainnya('k_jabatan', 'k_jabatan_lainnya', k.jabatan);
+        setupFieldLainnya('k_tim1', 'k_tim1_lainnya', k.tim1);
+        setupFieldLainnya('k_tim2', 'k_tim2_lainnya', k.tim2);
+        setupFieldLainnya('k_tim3', 'k_tim3_lainnya', k.tim3);
+
         document.getElementById('k_status').value = k.status;
         
-        // Setup dropdown Golongan & sesuaikan visibilitas
         let gol = k.golongan || "-";
         if (!["I", "II", "III", "IV"].includes(gol)) gol = "-";
         document.getElementById('k_golongan').value = gol;
-        toggleGolongan(); // Panggil fungsi hide/show berdasarkan status
+        toggleGolongan(); 
 
-        document.getElementById('k_jab_non_struk').value = k.jab_non_struk;
+        const jnsSelect = document.getElementById('k_jab_non_struk');
+        let jnsData = String(k.jab_non_struk || "").trim();
+        let optionExists = Array.from(jnsSelect.options).some(opt => opt.value === jnsData);
+        jnsSelect.value = optionExists ? jnsData : "Tidak ada";
+
         document.getElementById('k_risiko').value = k.risiko || "Tidak ada";
         document.getElementById('k_radiasi').value = k.radiasi || "Tidak ada";
         document.getElementById('k_emergensi').value = k.emergensi || "Non Emergency";
         document.getElementById('k_pola_kerja').value = k.pola_kerja || "Non Rotasi";
         document.getElementById('k_oncall').value = k.oncall || "Tidak";
-        document.getElementById('k_prestasi').value = k.prestasi;
-        document.getElementById('k_tim1').value = k.tim1;
-        document.getElementById('k_jab_tim1').value = k.jab_tim1;
-        document.getElementById('k_tim2').value = k.tim2;
-        document.getElementById('k_jab_tim2').value = k.jab_tim2;
-        document.getElementById('k_tim3').value = k.tim3;
-        document.getElementById('k_jab_tim3').value = k.jab_tim3;
 
+        let j1 = String(k.jab_tim1 || "").trim().toUpperCase();
+        document.getElementById('k_jab_tim1').value = ["A","B","C","D"].includes(j1) ? j1 : "-";
+        
+        let j2 = String(k.jab_tim2 || "").trim().toUpperCase();
+        document.getElementById('k_jab_tim2').value = ["A","B","C","D"].includes(j2) ? j2 : "-";
+        
+        let j3 = String(k.jab_tim3 || "").trim().toUpperCase();
+        document.getElementById('k_jab_tim3').value = ["A","B","C","D"].includes(j3) ? j3 : "-";
+
+        // Tampilkan Tombol Hapus (Hanya saat edit)
+        document.getElementById('btnHapus').style.display = "block";
         document.getElementById('modalKaryawan').style.display = 'block';
     }
 
@@ -309,23 +658,46 @@
         const nikTarget = document.getElementById('k_nik').value;
         const statusPegawai = document.getElementById('k_status').value;
         
-        // Logika Pintar: Jika bukan PNS, otomatis setor 'Non-PNS' agar Excel PPh 21 tidak bingung
         const golonganFinal = statusPegawai === 'PNS' ? document.getElementById('k_golongan').value : 'Non-PNS';
         
+        const getValueWithLainnya = (selectId, inputId) => {
+            const dropVal = document.getElementById(selectId).value;
+            return dropVal === 'Lainnya' ? document.getElementById(inputId).value : (dropVal === '-' ? '' : dropVal);
+        };
+
+        // --- AWAL LOGIKA SOFT DELETE ---
+        let prodVal = Number(document.getElementById('k_produktivitas').value) || 0;
+        let disVal = Number(document.getElementById('k_disiplin').value) || 0;
+        let jabTim1Val = document.getElementById('k_jab_tim1').value === "-" ? "" : document.getElementById('k_jab_tim1').value;
+        let jabTim2Val = document.getElementById('k_jab_tim2').value === "-" ? "" : document.getElementById('k_jab_tim2').value;
+        let jabTim3Val = document.getElementById('k_jab_tim3').value === "-" ? "" : document.getElementById('k_jab_tim3').value;
+
+        // Jika Karyawan Nonaktif, Paksa Kinerja dan Tim Menjadi 0 / Kosong
+        if (statusPegawai === "Nonaktif") {
+            prodVal = 0;
+            disVal = 0;
+            jabTim1Val = "";
+            jabTim2Val = "";
+            jabTim3Val = "";
+            alert("⚠️ Sistem otomatis men-Nol-kan Produktivitas, Disiplin, dan Jabatan Tim untuk karyawan Nonaktif agar tidak menerima JTL bulan depan.");
+        }
+        // --- AKHIR LOGIKA SOFT DELETE ---
+
         const payload = {
             nip: document.getElementById('k_nip').value,
             nama: document.getElementById('k_nama').value,
             rekening: document.getElementById('k_rekening').value,
             golongan: golonganFinal,
             
-            produktivitas: Number(document.getElementById('k_produktivitas').value) || 0,
-            disiplin: Number(document.getElementById('k_disiplin').value) || 0,
+            produktivitas: prodVal, // Menggunakan variabel yang sudah difilter
+            disiplin: disVal,       // Menggunakan variabel yang sudah difilter
             hukuman: Number(document.getElementById('k_hukuman').value) || 0,
 
-            pendidikan: document.getElementById('k_pendidikan').value,
-            jabatan: document.getElementById('k_jabatan').value,
-            unit: document.getElementById('k_unit').value,
-            tmt: document.getElementById('k_tmt').value,
+            pendidikan: document.getElementById('k_pendidikan').value === '-' ? '' : document.getElementById('k_pendidikan').value,
+            unit: document.getElementById('k_unit').value === '-' ? '' : document.getElementById('k_unit').value,
+            tmt: document.getElementById('k_tmt').value === '-' ? '' : document.getElementById('k_tmt').value,
+            prestasi: document.getElementById('k_prestasi').value === '-' ? '' : document.getElementById('k_prestasi').value,
+            
             status: statusPegawai,
             jab_non_struk: document.getElementById('k_jab_non_struk').value,
             risiko: document.getElementById('k_risiko').value,
@@ -333,21 +705,21 @@
             emergensi: document.getElementById('k_emergensi').value,
             pola_kerja: document.getElementById('k_pola_kerja').value,
             oncall: document.getElementById('k_oncall').value,
-            prestasi: document.getElementById('k_prestasi').value,
-            tim1: document.getElementById('k_tim1').value,
-            jab_tim1: document.getElementById('k_jab_tim1').value,
-            tim2: document.getElementById('k_tim2').value,
-            jab_tim2: document.getElementById('k_jab_tim2').value,
-            tim3: document.getElementById('k_tim3').value,
-            jab_tim3: document.getElementById('k_jab_tim3').value
-        };
+            
+            jabatan: getValueWithLainnya('k_jabatan', 'k_jabatan_lainnya'),
+            tim1: getValueWithLainnya('k_tim1', 'k_tim1_lainnya'),
+            tim2: getValueWithLainnya('k_tim2', 'k_tim2_lainnya'),
+            tim3: getValueWithLainnya('k_tim3', 'k_tim3_lainnya'),
 
-        btn.innerText = "⏳ Sedang Menyimpan..."; btn.disabled = true;
+            jab_tim1: jabTim1Val, // Menggunakan variabel yang sudah difilter
+            jab_tim2: jabTim2Val, // Menggunakan variabel yang sudah difilter
+            jab_tim3: jabTim3Val  // Menggunakan variabel yang sudah difilter
+        };
 
         try {
             const response = await fetch(WEB_APP_URL, {
                 method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action: "update_karyawan", nik: nikTarget, payload: payload })
+                body: JSON.stringify({ action: actionCommand, nik: nikTarget, payload: payload })
             });
             const res = await response.json();
             alert("✅ " + res.message);
@@ -357,6 +729,39 @@
             alert("❌ Gagal menyimpan data. Periksa koneksi internet Anda.");
         } finally {
             btn.innerText = "💾 Simpan Perubahan"; btn.disabled = false;
+        }
+    }
+
+    // FUNGSI MENGHAPUS KARYAWAN
+    async function hapusKaryawan() {
+        const nikTarget = document.getElementById('k_nik').value;
+        const namaTarget = document.getElementById('k_nama').value;
+
+        // Peringatan ganda karena berisiko
+        if(!confirm(`⚠️ PERINGATAN: Anda yakin ingin MENGHAPUS PERMANEN data ${namaTarget} (${nikTarget})?\n\nSaran: Lebih baik ubah Status Kepegawaian menjadi "Nonaktif / Keluar" agar data sejarah Jaspel sebelumnya tidak rusak.`)) return;
+        if(!confirm(`Data yang dihapus tidak bisa dikembalikan. Lanjutkan hapus?`)) return;
+
+        const btnHps = document.getElementById('btnHapus');
+        btnHps.innerText = "⏳ Menghapus..."; btnHps.disabled = true;
+
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "delete_karyawan", nik: nikTarget })
+            });
+            const res = await response.json();
+            
+            if (res.status === "success") {
+                alert("✅ " + res.message);
+                tutupModal();
+                loadData();
+            } else {
+                alert("❌ " + res.message);
+            }
+        } catch(e) {
+            alert("❌ Gagal menghapus data. Periksa koneksi.");
+        } finally {
+            btnHps.innerText = "🗑️ Hapus"; btnHps.disabled = false;
         }
     }
 
