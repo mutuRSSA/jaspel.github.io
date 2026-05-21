@@ -17,7 +17,8 @@
         input:focus { border-color: #0984e3; box-shadow: 0 0 0 3px rgba(9, 132, 227, 0.1); }
         .btn-login { width: 100%; padding: 12px; background: #0984e3; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; margin-top: 10px; }
         .btn-login:hover { background: #074b83; transform: translateY(-1px); }
-        .error-msg { color: #d63031; font-size: 13px; margin-top: 15px; display: none; }
+        .btn-login:disabled { background: #b2bec3; cursor: not-allowed; }
+        .error-msg { color: #d63031; font-size: 13px; margin-top: 15px; display: none; background: #fadbd8; padding: 10px; border-radius: 5px; border: 1px solid #f5c6cb;}
         .footer { margin-top: 30px; font-size: 11px; color: #b2bec3; }
     </style>
 </head>
@@ -30,7 +31,7 @@
 
     <div class="form-group">
         <label>Nama Pengguna / Email</label>
-        <input type="text" id="username" placeholder="Masukkan username...">
+        <input type="text" id="username" placeholder="Masukkan username..." autocomplete="off">
     </div>
 
     <div class="form-group">
@@ -38,50 +39,68 @@
         <input type="password" id="password" placeholder="••••••••">
     </div>
 
-    <button class="btn-login" onclick="handleLogin()">Masuk ke Sistem</button>
+    <button class="btn-login" id="btnLogin" onclick="handleLogin()">Masuk ke Sistem</button>
     
     <div id="error" class="error-msg">❌ Username atau password salah!</div>
 
     <div class="footer">
-        © 2026 RSUD Management System <br>
+        © 2026 Husni Muarif <br>
         Sistem Informasi Jasa Pelayanan Terpadu
     </div>
 </div>
 
 <script>
-    // Data akun simulasi sesuai hak akses yang kita buat
-    const users = [
-        { user: "admin", pass: "admin123", role: "admin" },
-        { user: "direktur", pass: "dir123", role: "direksi" },
-        { user: "keuangan", pass: "keu123", role: "keuangan" },
-        { user: "operator", pass: "op123", role: "operator" }
-    ];
-
     async function handleLogin() {
         const u = document.getElementById('username').value;
         const p = document.getElementById('password').value;
         const err = document.getElementById('error');
+        const btn = document.getElementById('btnLogin');
 
-        // Validasi Sederhana
-        const found = users.find(x => x.user === u && x.pass === p);
-
-        if (found) {
-            // 1. Simpan Role ke LocalStorage (Agar Navbar menyesuaikan)
-            localStorage.setItem("userRole", found.role);
-            localStorage.setItem("userName", found.user);
-
-            // 2. Redirect ke halaman utama (Dashboard)
-            // Sesuaikan redirect ini ke halaman awal yang Anda inginkan untuk masing-masing role
-            if (found.role === "direksi") {
-                window.location.href = "dashboard.html";
-            } else if (found.role === "operator") {
-                window.location.href = "entry_massal.html";
-            } else {
-                window.location.href = "admin_pasien.html";
-            }
-        } else {
+        // Validasi Kosong
+        if (!u || !p) {
+            err.innerText = "❌ Harap isi username dan kata sandi!";
             err.style.display = "block";
-            setTimeout(() => { err.style.display = "none"; }, 3000);
+            return;
+        }
+
+        btn.innerText = "⏳ Memvalidasi...";
+        btn.disabled = true;
+        err.style.display = "none";
+
+        try {
+            // Tembak API ke Google Apps Script
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "login", username: u, password: p })
+            });
+            
+            const res = await response.json();
+
+            if (res.status === "success") {
+                // 1. Simpan Role ke LocalStorage (Agar Navbar menyesuaikan)
+                localStorage.setItem("userRole", res.role);
+                localStorage.setItem("userName", res.user);
+
+                // 2. Redirect berdasarkan Role
+                if (res.role === "direksi") {
+                    window.location.href = "dashboard.html";
+                } else if (res.role === "operator") {
+                    window.location.href = "entry_massal.html";
+                } else {
+                    window.location.href = "index.html"; 
+                }
+            } else {
+                // Tampilkan pesan gagal (salah password)
+                err.innerText = "❌ " + res.message;
+                err.style.display = "block";
+            }
+        } catch (e) {
+            err.innerText = "❌ Gagal menghubungi server. Periksa koneksi Anda.";
+            err.style.display = "block";
+        } finally {
+            btn.innerText = "Masuk ke Sistem";
+            btn.disabled = false;
         }
     }
 

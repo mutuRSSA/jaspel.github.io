@@ -19,8 +19,8 @@
         .summary-card .value { font-size: 20px; font-weight: bold; color: #333; }
 
         /* TABS STYLING */
-        .tabs { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 20px; }
-        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 14px; font-weight: bold; color: #6c757d; border-bottom: 3px solid transparent; transition: 0.3s; }
+        .tabs { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 20px; overflow-x: auto;}
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 14px; font-weight: bold; color: #6c757d; border-bottom: 3px solid transparent; transition: 0.3s; white-space: nowrap;}
         .tab-btn:hover { color: #004085; }
         .tab-btn.active { color: #004085; border-bottom: 3px solid #004085; }
         .tab-content { display: none; }
@@ -39,6 +39,13 @@
         .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s;}
         .btn-excel { background: #28a745; color: white; }
         .btn-excel:hover { background: #218838; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; width: 100%; font-size: 15px; margin-top: 10px; padding: 12px;}
+        .btn-open { background: #17a2b8; color: white; font-size: 12px; text-decoration: none; padding: 5px 10px; border-radius: 4px;}
+        
+        input[type="text"] { padding: 10px; border: 1px solid #ccc; border-radius: 5px; width: 250px; outline: none;}
+
+        .backup-panel { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6;}
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
@@ -46,11 +53,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script>
-    // Proteksi Halaman: Cek apakah user sudah login
-    if (!localStorage.getItem("userRole")) {
-        window.location.href = "login.html"; // Tendang balik ke login jika belum ada role
-    }
-</script>
+    if (!localStorage.getItem("userRole")) { window.location.href = "login.html"; }
+    </script>
     <script src="config.js"></script>
 </head>
 <body>
@@ -58,36 +62,39 @@
 <div class="card">
     <div class="header">
         <h2 class="header-title">🗄️ Buku Besar Riwayat Jaspel <span class="badge bg-gray" style="font-size:12px;">READ-ONLY</span></h2>
-        <button class="btn btn-excel" id="btnExport" style="display: none;" onclick="exportArsipExcel(event)">📥 Download Arsip (Excel)</button>
-    </div>
-
-    <div class="controls">
-        <label style="font-weight:bold; color:#856404;">Pilih Periode Arsip:</label>
-        <select id="selectPeriode" onchange="loadArsipData()">
-            <option value="">⏳ Memuat daftar periode...</option>
-        </select>
-        <span style="color:#856404; font-size:12px; margin-left:auto;"><i>Data pada halaman ini adalah arsip beku dan tidak dapat diubah.</i></span>
-    </div>
-
-    <div class="summary-cards">
-        <div class="summary-card" style="border-color: #28a745;">
-            <h3>Total Dana Terdistribusi</h3>
-            <div class="value" id="sumDana">Rp 0</div>
-        </div>
-        <div class="summary-card" style="border-color: #007bff;">
-            <h3>Total Penerima (Karyawan)</h3>
-            <div class="value" id="sumKar">0 Orang</div>
-        </div>
-        <div class="summary-card" style="border-color: #dc3545;">
-            <h3>Total Pasien Dilayani</h3>
-            <div class="value" id="sumPas">0 Pasien</div>
-        </div>
+        <button class="btn btn-excel" id="btnExport" style="display: none;" onclick="exportArsipExcel(event)">📥 Download Tabel ke Excel</button>
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="openTab('tab-karyawan')">👥 Arsip Penerimaan Karyawan</button>
-        <button class="tab-btn" onclick="openTab('tab-pasien')">🏥 Arsip Rincian Pasien</button>
-        <button class="tab-btn" onclick="openTab('tab-variabel')">⚙️ Kebijakan Proporsi Berlaku</button>
+        <button class="tab-btn active" onclick="openTab('tab-karyawan')">👥 Arsip Karyawan</button>
+        <button class="tab-btn" onclick="openTab('tab-pasien')">🏥 Arsip Pasien</button>
+        <button class="tab-btn" onclick="openTab('tab-variabel')">⚙️ Kebijakan Variabel</button>
+        <button class="tab-btn" onclick="openTab('tab-coldstorage'); muatDaftarArsip();" style="color: #d35400;">📁 Cold Storage (Google Drive)</button>
+    </div>
+
+    <div id="areaKontrolSnapshot">
+        <div class="controls">
+            <label style="font-weight:bold; color:#856404;">Pilih Periode Arsip:</label>
+            <select id="selectPeriode" onchange="loadArsipData()">
+                <option value="">⏳ Memuat daftar periode...</option>
+            </select>
+            <span style="color:#856404; font-size:12px; margin-left:auto;"><i>Data pada halaman ini adalah arsip beku internal dari Database.</i></span>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card" style="border-color: #28a745;">
+                <h3>Total Dana Terdistribusi</h3>
+                <div class="value" id="sumDana">Rp 0</div>
+            </div>
+            <div class="summary-card" style="border-color: #007bff;">
+                <h3>Total Penerima (Karyawan)</h3>
+                <div class="value" id="sumKar">0 Orang</div>
+            </div>
+            <div class="summary-card" style="border-color: #dc3545;">
+                <h3>Total Pasien Dilayani</h3>
+                <div class="value" id="sumPas">0 Pasien</div>
+            </div>
+        </div>
     </div>
 
     <div id="tab-karyawan" class="tab-content active">
@@ -141,23 +148,60 @@
         </table>
     </div>
 
+    <div id="tab-coldstorage" class="tab-content">
+        <div class="backup-panel">
+            <h3 style="margin-top:0; color:#004085;">🚀 Finalisasi & Backup Bulanan (Cold Storage)</h3>
+            <p style="font-size: 13px; color: #555;">Fitur ini akan meng-kloning seluruh sheet (Karyawan, Pasien, Variabel, Rekap) ke sebuah file Spreadsheet baru di Google Drive Anda. Seluruh rumus akan dinonaktifkan (diubah menjadi angka permanen) untuk kebutuhan Audit SPI/BPK yang aman.</p>
+            
+            <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
+                <input type="text" id="periodeInput" placeholder="Contoh: Januari 2026">
+                <button class="btn btn-primary" id="btnRun" onclick="eksekusiBackup()" style="width: auto; padding: 11px 20px;">📁 Jalankan Backup Permanen Sekarang</button>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">📂 Riwayat File Tersimpan di Drive</h3>
+            <button class="btn btn-primary" style="background: #17a2b8;" onclick="muatDaftarArsip()">🔄 Segarkan Daftar</button>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Nama File Backup</th>
+                    <th>Tanggal Dieksekusi</th>
+                    <th class="text-center">Aksi / Link</th>
+                </tr>
+            </thead>
+            <tbody id="tabelArsipDrive">
+                <tr><td colspan="3" class="text-center" style="padding: 20px;">Memuat riwayat arsip...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
 </div>
 
 <script>
-    let currentArsipData = null; // Menyimpan data arsip untuk diekspor
+    let currentArsipData = null; 
     let currentPeriode = "";
 
     function formatRp(angka) { return new Intl.NumberFormat('id-ID').format(Math.round(angka || 0)); }
     
-    // FUNGSI TABS
+    // FUNGSI TABS DINAMIS
     function openTab(tabId) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         event.target.classList.add('active');
         document.getElementById(tabId).classList.add('active');
+
+        // Sembunyikan kontrol snapshot jika di Tab Cold Storage
+        if(tabId === 'tab-coldstorage') {
+            document.getElementById('areaKontrolSnapshot').style.display = 'none';
+        } else {
+            document.getElementById('areaKontrolSnapshot').style.display = 'block';
+        }
     }
 
-    // 1. LOAD DAFTAR PERIODE SAAT HALAMAN DIBUKA
+    // LOAD DAFTAR PERIODE INTERNAL
     window.onload = async function() {
         try {
             const response = await fetch(WEB_APP_URL, { 
@@ -177,22 +221,20 @@
         } catch (e) { alert("Gagal memuat daftar periode."); }
     };
 
-    // 2. LOAD DATA BERDASARKAN PERIODE YANG DIPILIH
+    // LOAD DATA BERDASARKAN PERIODE
     async function loadArsipData() {
         const periode = document.getElementById('selectPeriode').value;
         const btnExport = document.getElementById('btnExport');
         
         if(!periode) {
-            currentArsipData = null;
-            currentPeriode = "";
-            btnExport.style.display = "none";
+            currentArsipData = null; currentPeriode = ""; btnExport.style.display = "none";
             return;
         }
 
         document.getElementById('bodyKaryawan').innerHTML = '<tr><td colspan="8" class="text-center">⏳ Memuat data...</td></tr>';
         document.getElementById('bodyPasien').innerHTML = '<tr><td colspan="7" class="text-center">⏳ Memuat data...</td></tr>';
         document.getElementById('bodyVariabel').innerHTML = '<tr><td class="text-center">⏳ Memuat data...</td></tr>';
-        btnExport.style.display = "none"; // Sembunyikan tombol saat loading
+        btnExport.style.display = "none"; 
 
         try {
             const response = await fetch(WEB_APP_URL, { 
@@ -202,19 +244,17 @@
             const res = await response.json();
             
             if(res.status === "success") {
-                currentArsipData = res.data; // Simpan data untuk Excel
+                currentArsipData = res.data; 
                 currentPeriode = periode;
                 
                 renderKaryawan(res.data.karyawan);
                 renderPasien(res.data.pasien);
                 renderVariabel(res.data.variabel);
-                
-                btnExport.style.display = "block"; // Munculkan tombol jika sukses
+                btnExport.style.display = "block"; 
             }
         } catch (e) { alert("Gagal memuat data arsip."); }
     }
 
-    // RENDER TABEL KARYAWAN
     function renderKaryawan(data) {
         let html = ''; let sumDana = 0;
         data.forEach((k, i) => {
@@ -235,7 +275,6 @@
         document.getElementById('sumKar').innerText = data.length + " Orang";
     }
 
-    // RENDER TABEL PASIEN
     function renderPasien(data) {
         let html = ''; 
         data.forEach(p => {
@@ -254,7 +293,6 @@
         document.getElementById('sumPas').innerText = data.length + " Pasien";
     }
 
-    // RENDER TABEL VARIABEL
     function renderVariabel(data) {
         let html = '';
         data.forEach(row => {
@@ -268,130 +306,108 @@
         document.getElementById('bodyVariabel').innerHTML = html || '<tr><td class="text-center">Tidak ada data variabel.</td></tr>';
     }
 
-    // ==============================================================
-    // GENERATOR EXCEL (MENCETAK 3 SHEET SEKALIGUS)
-    // ==============================================================
-    async function exportArsipExcel(event) {
-        if(!currentArsipData || !currentPeriode) {
-            alert("Pilih periode arsip terlebih dahulu!");
-            return;
-        }
+    // ==========================================
+    // FUNGSI COLD STORAGE (TAB 4)
+    // ==========================================
+    async function muatDaftarArsip() {
+        const tbody = document.getElementById('tabelArsipDrive');
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 20px;">⏳ Menghubungkan ke Google Drive...</td></tr>';
+        
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "get_list_backup" })
+            });
+            const res = await response.json();
+            
+            let html = "";
+            if(res.data.length === 0) {
+                html = '<tr><td colspan="3" style="text-align:center; padding: 20px;">Belum ada file arsip tersimpan di Drive Anda.</td></tr>';
+            } else {
+                // Urutkan file terbaru di atas
+                res.data.reverse().forEach(file => {
+                    html += `<tr>
+                        <td><b style="color:#004085;">📄 ${file.nama}</b></td>
+                        <td>${file.dibuat}</td>
+                        <td class="text-center"><a href="${file.url}" target="_blank" class="btn-open">🔗 Buka di Tab Baru</a></td>
+                    </tr>`;
+                });
+            }
+            tbody.innerHTML = html;
+        } catch (e) { tbody.innerHTML = '<tr><td colspan="3" style="color:red; text-align:center; padding: 20px;">Gagal terhubung ke Google Drive.</td></tr>'; }
+    }
 
-        const btn = event.target;
-        const originalText = btn.innerText;
-        btn.innerText = "⏳ Sedang Menyusun Excel..."; 
-        btn.disabled = true;
+    async function eksekusiBackup() {
+        const per = document.getElementById('periodeInput').value;
+        if(!per) return alert("⚠️ Ketik periode terlebih dahulu (Misal: Januari 2026)");
+        
+        if(!confirm(`⚠️ KONFIRMASI: Eksekusi File Backup Permanen\n\nSistem akan meng-kloning data ${per} ke file Spreadsheet baru dan MEMATIKAN SEMUA RUMUS. Proses ini butuh waktu 15-30 detik. Lanjutkan?`)) return;
+
+        const btn = document.getElementById('btnRun');
+        btn.innerText = "⏳ Sedang Meng-Kloning Data..."; btn.disabled = true;
 
         try {
-            const workbook = new ExcelJS.Workbook();
-            workbook.creator = 'Sistem Jaspel RSUD';
-
-            // ----------------------------------------------------
-            // SHEET 1: ARSIP KARYAWAN
-            // ----------------------------------------------------
-            const ws1 = workbook.addWorksheet('Arsip_Karyawan');
-            ws1.getCell('A1').value = `ARSIP PENERIMAAN JASPEL KARYAWAN - PERIODE: ${currentPeriode.toUpperCase()}`;
-            ws1.mergeCells('A1:L1');
-            ws1.getCell('A1').font = { bold: true, size: 12 };
-            ws1.getCell('A1').alignment = { horizontal: 'center' };
-
-            ws1.getRow(3).values = ["NO", "NO REKENING", "NAMA KARYAWAN", "JABATAN", "PROD", "DISIPLIN", "PENGELOLA", "DOKTER", "PETUGAS", "TIM", "JTL", "TOTAL TERIMA"];
-            
-            let r1 = 4;
-            currentArsipData.karyawan.forEach((k, i) => {
-                ws1.getRow(r1).values = [
-                    i+1, k.rekening, k.nama, k.jabatan, k.produktivitas, k.disiplin,
-                    k.pengelola, k.dokter, k.petugas, k.tim, k.jtl, k.total
-                ];
-                r1++;
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "proses_backup_file", periode: per })
             });
-
-            // Format Tabel Karyawan
-            for(let r = 3; r < r1; r++) {
-                let row = ws1.getRow(r);
-                row.eachCell((cell, colNumber) => {
-                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                    if(r === 3) {
-                        cell.font = { bold: true }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFEEEEEE'} };
-                    } else if (colNumber >= 7) {
-                        cell.numFmt = '#,##0'; // Format mata uang (ribuan)
-                    }
-                });
-            }
-            ws1.columns = [{width:5}, {width:18}, {width:30}, {width:25}, {width:8}, {width:10}, {width:15}, {width:15}, {width:15}, {width:15}, {width:15}, {width:18}];
-
-            // ----------------------------------------------------
-            // SHEET 2: ARSIP PASIEN
-            // ----------------------------------------------------
-            const ws2 = workbook.addWorksheet('Arsip_Pasien');
-            ws2.getCell('A1').value = `ARSIP RINCIAN PASIEN - PERIODE: ${currentPeriode.toUpperCase()}`;
-            ws2.mergeCells('A1:J1');
-            ws2.getCell('A1').font = { bold: true, size: 12 };
-            ws2.getCell('A1').alignment = { horizontal: 'center' };
-
-            ws2.getRow(3).values = ["NO", "TANGGAL", "NO RM", "NAMA PASIEN", "LAYANAN", "TIPE BAYAR", "DOKTER", "PERAN", "TARIF KLAIM", "JASA MEDIK"];
+            const res = await response.json();
             
-            let r2 = 4;
-            currentArsipData.pasien.forEach((p, i) => {
-                let tgl = p.tanggal; try { if(tgl.length > 10) tgl = tgl.substring(0,10); } catch(e){}
-                ws2.getRow(r2).values = [
-                    i+1, tgl, p.rm, p.nama, p.layanan, p.pembayaran, p.dokter, p.peran, p.tarif, p.jasa_medik
-                ];
-                r2++;
-            });
-
-            // Format Tabel Pasien
-            for(let r = 3; r < r2; r++) {
-                let row = ws2.getRow(r);
-                row.eachCell((cell, colNumber) => {
-                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                    if(r === 3) {
-                        cell.font = { bold: true }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFEEEEEE'} };
-                    } else if (colNumber >= 9) {
-                        cell.numFmt = '#,##0'; // Format mata uang
-                    }
-                });
+            // PERBAIKAN BUG: Cek status success vs error
+            if (res.status === "success") {
+                alert("✅ " + res.message);
+                document.getElementById('periodeInput').value = "";
+                muatDaftarArsip(); // Auto-refresh tabel Drive
+            } else {
+                alert("❌ GAGAL: " + res.message);
             }
-            ws2.columns = [{width:5}, {width:12}, {width:12}, {width:30}, {width:15}, {width:12}, {width:30}, {width:12}, {width:18}, {width:18}];
-
-            // ----------------------------------------------------
-            // SHEET 3: ARSIP VARIABEL
-            // ----------------------------------------------------
-            const ws3 = workbook.addWorksheet('Kebijakan_Variabel');
-            ws3.getCell('A1').value = `ARSIP KEBIJAKAN PROPORSI - PERIODE: ${currentPeriode.toUpperCase()}`;
-            ws3.mergeCells('A1:D1');
-            ws3.getCell('A1').font = { bold: true, size: 12 };
-
-            ws3.getRow(3).values = ["NO", "PARAMETER", "NILAI / PERSENTASE", "KETERANGAN / KRITERIA"];
             
-            let r3 = 4;
-            currentArsipData.variabel.forEach((v, i) => {
-                ws3.getRow(r3).values = [i+1, v[0] || "-", v[1] || "-", v[2] || ""];
-                r3++;
-            });
-
-            for(let r = 3; r < r3; r++) {
-                let row = ws3.getRow(r);
-                row.eachCell((cell) => {
-                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                    if(r === 3) { cell.font = { bold: true }; cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFEEEEEE'} }; }
-                });
-            }
-            ws3.columns = [{width:5}, {width:35}, {width:25}, {width:50}];
-
-            // Memicu Download
-            const buffer = await workbook.xlsx.writeBuffer();
-            saveAs(new Blob([buffer]), `Arsip_Jaspel_${currentPeriode.replace(/\s+/g, '_')}.xlsx`);
-
-        } catch(e) {
-            console.error(e);
-            alert("Terjadi kesalahan saat menyusun Excel.");
-        } finally {
-            btn.innerText = originalText;
-            btn.disabled = false;
+        } catch (e) { 
+            alert("❌ Terjadi kesalahan saat memproses backup. Server sibuk."); 
+        } finally { 
+            btn.innerText = "📁 Jalankan Backup Permanen Sekarang"; btn.disabled = false; 
         }
     }
 
+    // ==========================================
+    // EXPORT DOWNLOAD KE LOCAL EXCEL 
+    // ==========================================
+    async function exportArsipExcel(event) {
+        if(!currentArsipData || !currentPeriode) return alert("Pilih periode arsip terlebih dahulu!");
+        const btn = event.target; const originalText = btn.innerText;
+        btn.innerText = "⏳ Sedang Menyusun Excel..."; btn.disabled = true;
+
+        try {
+            const workbook = new ExcelJS.Workbook(); workbook.creator = 'Sistem Jaspel RSUD';
+            
+            // Sheet 1 Karyawan
+            const ws1 = workbook.addWorksheet('Arsip_Karyawan');
+            ws1.getCell('A1').value = `ARSIP PENERIMAAN JASPEL KARYAWAN - PERIODE: ${currentPeriode.toUpperCase()}`;
+            ws1.mergeCells('A1:L1'); ws1.getCell('A1').font = { bold: true, size: 12 }; ws1.getCell('A1').alignment = { horizontal: 'center' };
+            ws1.getRow(3).values = ["NO", "NO REKENING", "NAMA KARYAWAN", "JABATAN", "PROD", "DISIPLIN", "PENGELOLA", "DOKTER", "PETUGAS", "TIM", "JTL", "TOTAL TERIMA"];
+            let r1 = 4;
+            currentArsipData.karyawan.forEach((k, i) => {
+                ws1.getRow(r1++).values = [ i+1, k.rekening, k.nama, k.jabatan, k.produktivitas, k.disiplin, k.pengelola, k.dokter, k.petugas, k.tim, k.jtl, k.total ];
+            });
+
+            // Sheet 2 Pasien
+            const ws2 = workbook.addWorksheet('Arsip_Pasien');
+            ws2.getCell('A1').value = `ARSIP RINCIAN PASIEN - PERIODE: ${currentPeriode.toUpperCase()}`;
+            ws2.mergeCells('A1:J1'); ws2.getCell('A1').font = { bold: true, size: 12 }; ws2.getCell('A1').alignment = { horizontal: 'center' };
+            ws2.getRow(3).values = ["NO", "TANGGAL", "NO RM", "NAMA PASIEN", "LAYANAN", "TIPE BAYAR", "DOKTER", "PERAN", "TARIF KLAIM", "JASA MEDIK"];
+            let r2 = 4;
+            currentArsipData.pasien.forEach((p, i) => {
+                let tgl = p.tanggal; try { if(tgl.length > 10) tgl = tgl.substring(0,10); } catch(e){}
+                ws2.getRow(r2++).values = [ i+1, tgl, p.rm, p.nama, p.layanan, p.pembayaran, p.dokter, p.peran, p.tarif, p.jasa_medik ];
+            });
+
+            // Trigger Download
+            const buffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), `Arsip_Internal_Jaspel_${currentPeriode.replace(/\s+/g, '_')}.xlsx`);
+
+        } catch(e) { alert("Terjadi kesalahan saat menyusun Excel."); } 
+        finally { btn.innerText = originalText; btn.disabled = false; }
+    }
 </script>
 </body>
 </html>

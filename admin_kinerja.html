@@ -14,6 +14,8 @@
         .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
         
         .header-title { margin-top: 0; color: #004085; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px;}
+        
+        .controls-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; background: #f8f9fa; padding: 10px; border-radius: 8px; }
         .info-text { font-size: 13px; color: #555; margin-bottom: 15px; background: #e2e3e5; padding: 10px 15px; border-radius: 5px; border-left: 4px solid #383d41; }
         
         #spreadsheet-container { margin-bottom: 20px; width: 100%; border: 1px solid #ccc; background: #fdfdfd;}
@@ -23,15 +25,14 @@
         .btn-submit:hover { background: #218838; }
         .btn-refresh { background: #17a2b8; color: white; }
 
+        select { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 13px; outline: none; }
+
         /* Custom style agar NIK dan Nama terlihat dikunci (Read-only) */
         .jexcel > tbody > tr > td[data-x="0"], .jexcel > tbody > tr > td[data-x="1"] { background-color: #f8f9fa; color: #555; cursor: not-allowed; }
     </style>
     <script>
-    // Proteksi Halaman: Cek apakah user sudah login
-    if (!localStorage.getItem("userRole")) {
-        window.location.href = "login.html"; // Tendang balik ke login jika belum ada role
-    }
-</script>
+    if (!localStorage.getItem("userRole")) { window.location.href = "login.html"; }
+    </script>
     <script src="config.js"></script>
 </head>
 <body>
@@ -41,9 +42,24 @@
         <h2 style="margin:0;">⚡ Input Massal Kinerja Bulanan</h2>
         <button class="btn btn-refresh" onclick="loadData()">🔄 Tarik Database Karyawan</button>
     </div>
+
+    <div class="controls-container">
+        <div>
+            <label style="font-weight:bold; margin-right: 10px;">Baris per Halaman:</label>
+            <select id="limitData" onchange="reRenderTable()">
+                <option value="10">10 Baris</option>
+                <option value="20">20 Baris</option>
+                <option value="30">30 Baris</option>
+                <option value="50">50 Baris</option>
+                <option value="100">100 Baris</option>
+                <option value="1000000">Semua Nama</option>
+            </select>
+        </div>
+    </div>
     
     <div class="info-text">
-        💡 <b>Tips Cepat:</b> Kolom NIK dan Nama <b>terkunci</b>. Anda dapat melakukan <i>Copy-Paste</i> langsung dari Microsoft Excel ke dalam kolom <b>Produktivitas</b>, <b>Disiplin</b>, dan <b>Hukuman</b> di bawah ini. Angka 1 = 100%, 0.8 = 80%.
+        💡 <b>Tips Cepat:</b> Kolom NIK dan Nama <b>terkunci</b>. Anda dapat melakukan <i>Copy-Paste</i> langsung dari Microsoft Excel ke dalam kolom <b>Produktivitas</b> dan <b>Disiplin</b>. <br>
+        Gunakan angka persentase (contoh: <b>85,5</b>). Gunakan filter pencarian di tabel jika ingin mencari nama tertentu.
     </div>
 
     <div id="spreadsheet-container">
@@ -55,6 +71,14 @@
 
 <script>
     let tabelExcel = null;
+    let cachedDataKaryawan = []; // Simpan data di memori agar ganti limit tidak perlu fetch ulang
+
+    function bacaAngkaLokal(valData) {
+        if (valData === "" || valData === null || valData === undefined) return 1;
+        let strVal = String(valData).replace(',', '.');
+        let angka = parseFloat(strVal);
+        return isNaN(angka) ? 1 : angka;
+    }
 
     async function loadData() {
         const wadah = document.getElementById('spreadsheet-container');
@@ -68,44 +92,60 @@
             const res = await response.json();
             
             if (res.status === "success") {
-                renderTabelKinerja(res.data);
+                cachedDataKaryawan = res.data;
+                renderTabelKinerja(cachedDataKaryawan);
             } else {
-                wadah.innerHTML = `<p style="color:red; text-align:center;">Gagal memuat.</p>`;
+                wadah.innerHTML = `<p style="color:red; text-align:center;">Gagal memuat data dari server.</p>`;
             }
         } catch(e) {
             wadah.innerHTML = `<p style="color:red; text-align:center;">Error koneksi jaringan.</p>`;
         }
     }
 
+    // Fungsi untuk me-render ulang tabel saat dropdown limit berubah
+    function reRenderTable() {
+        if (cachedDataKaryawan.length > 0) {
+            renderTabelKinerja(cachedDataKaryawan);
+        }
+    }
+
     function renderTabelKinerja(dataKaryawan) {
         const wadah = document.getElementById('spreadsheet-container');
+        const pageSize = parseInt(document.getElementById('limitData').value);
         wadah.innerHTML = ""; 
 
-        // 1. Format data array of object menjadi Array 2D [ [NIK, Nama, Prod, Disiplin, Hukuman] ]
-        let data2D = dataKaryawan.map(k => [
-            k.nik, 
-            k.nama, 
-            k.produktivitas !== undefined ? k.produktivitas : 1, 
-            k.disiplin !== undefined ? k.disiplin : 1, 
-            k.hukuman !== undefined ? k.hukuman : 0
-        ]);
+        let data2D = dataKaryawan.map(k => {
+            let prodDesimal = bacaAngkaLokal(k.produktivitas);
+            let disDesimal = bacaAngkaLokal(k.disiplin);
+            let hukDesimal = bacaAngkaLokal(k.hukuman !== undefined ? k.hukuman : 0);
 
-        // 2. Inisialisasi Jspreadsheet
+            let prodPersen = Math.round(prodDesimal * 10000) / 100;
+            let disPersen = Math.round(disDesimal * 10000) / 100;
+
+            return [
+                k.nik, 
+                k.nama, 
+                prodPersen, 
+                disPersen, 
+                hukDesimal
+            ];
+        });
+
         tabelExcel = jspreadsheet(wadah, {
             data: data2D,
             columns: [
                 { type: 'text', title: 'NIK', width: 140, readOnly: true },
                 { type: 'text', title: 'NAMA KARYAWAN', width: 300, readOnly: true },
-                { type: 'numeric', title: 'PRODUKTIVITAS (1=100%)', width: 150 },
-                { type: 'numeric', title: 'DISIPLIN (1=100%)', width: 150 },
+                { type: 'text', title: 'PRODUKTIVITAS (%)', width: 160 },
+                { type: 'text', title: 'DISIPLIN (%)', width: 140 },
                 { type: 'dropdown', title: 'SANKSI HUKUMAN', width: 150, source: [
                     { id: 0, name: '0% (Aman)' }, 
                     { id: 0.25, name: '25% (Ringan)' }, 
                     { id: 0.50, name: '50% (Berat)' }
                 ]}
             ],
-            search: true, // Menambahkan fitur pencarian bawaan
-            pagination: 25, // Agar browser tidak lag jika data > 300
+            search: true,
+            pagination: pageSize, // Menggunakan nilai dari dropdown
             tableOverflow: true, 
             tableWidth: "100%", 
             tableHeight: "60vh",
@@ -122,17 +162,23 @@
         btn.innerText = "⏳ Sedang Menyimpan Ratusan Data ke Google Sheets..."; 
         btn.disabled = true;
 
-        // Ambil data yang ada di tabel
         const isiData = tabelExcel.getData();
-        
-        // Format ulang menjadi Payload yang dipahami Backend
         let payloadKinerja = [];
+
+        const konversiKetikanKeDesimal = (nilaiInput) => {
+            if (nilaiInput === "" || nilaiInput === null || nilaiInput === undefined) return 0;
+            let nilaiBersih = String(nilaiInput).replace(',', '.'); 
+            let angka = parseFloat(nilaiBersih);
+            if (isNaN(angka)) return 0;
+            return angka / 100;
+        };
+        
         isiData.forEach(baris => {
             payloadKinerja.push({
                 nik: baris[0],
-                prod: baris[2],
-                dis: baris[3],
-                huk: baris[4]
+                prod: konversiKetikanKeDesimal(baris[2]),
+                dis: konversiKetikanKeDesimal(baris[3]),
+                huk: parseFloat(String(baris[4] || 0).replace(',','.')) || 0 
             });
         });
 
@@ -146,6 +192,7 @@
             });
             const res = await response.json();
             alert("✅ " + res.message);
+            loadData(); // Refresh data setelah simpan
         } catch(e) {
             alert("❌ Gagal menyimpan. Cek koneksi internet Anda.");
         } finally {
@@ -154,7 +201,6 @@
         }
     }
 
-    // Jalankan saat halaman dibuka
     window.onload = loadData;
 </script>
 </body>
