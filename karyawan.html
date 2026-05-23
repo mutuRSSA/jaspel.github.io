@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Dashboard Database Karyawan</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; font-size: 13px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; font-size: 13px; margin: 0;}
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
@@ -17,11 +17,12 @@
         th { background: #004085; color: white; }
         tr:hover { background-color: #f8f9fa; }
         
-        .btn { padding: 6px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s;}
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s;}
         .btn:hover { filter: brightness(0.9); }
         .btn-refresh { background: #28a745; color: white; font-size: 13px;}
         .btn-add { background: #007bff; color: white; font-size: 13px;}
-        .btn-edit { background: #17a2b8; color: white; }
+        .btn-excel { background: #ffc107; color: #333; font-size: 13px;}
+        .btn-edit { background: #17a2b8; color: white; padding: 6px 12px;}
         
         /* Modal Style */
         .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index: 1000; }
@@ -41,6 +42,11 @@
         .k-merah { color: #dc3545; font-weight: bold; }
         .status-nonaktif { background: #dc3545 !important; color: white !important; }
     </style>
+    
+    <!-- Library untuk Ekspor Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
     <script>
     if (!localStorage.getItem("userRole")) { window.location.href = "login.html"; }
     </script>
@@ -51,9 +57,10 @@
 <div class="card">
     <div class="header">
         <h2 style="margin:0; color: #004085;">👥 Database Induk Karyawan</h2>
-        <div>
-            <button class="btn btn-add" style="padding:8px 15px; margin-right: 5px;" onclick="bukaModalBaru()">➕ Tambah Karyawan</button>
-            <button class="btn btn-refresh" style="padding:8px 15px;" onclick="loadData()">🔄 Segarkan Data</button>
+        <div style="display:flex; gap: 8px;">
+            <button class="btn btn-add" onclick="bukaModalBaru()">➕ Tambah Karyawan</button>
+            <button class="btn btn-excel" onclick="exportKaryawanExcel(event)">📥 Download Excel</button>
+            <button class="btn btn-refresh" onclick="loadData()">🔄 Segarkan Data</button>
         </div>
     </div>
 
@@ -65,10 +72,12 @@
             <option value="All">Semua</option>
         </select>
         
-        <input type="text" id="search" class="search-box" placeholder="Cari NIK, Nama, atau Unit..." onkeyup="debounceSearch()">
-        <label style="font-size:12px; margin-left:15px; cursor:pointer;">
-    <input type="checkbox" id="hideNonaktif" onchange="applyFilter()" checked> Sembunyikan Nonaktif
-</label>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <input type="text" id="search" class="search-box" placeholder="Cari NIK, Nama, atau Unit..." onkeyup="debounceSearch()">
+            <label style="font-size:12px; cursor:pointer; font-weight: bold; color: #004085;">
+                <input type="checkbox" id="hideNonaktif" onchange="applyFilter()" checked> Sembunyikan Nonaktif
+            </label>
+        </div>
     </div>
 
     <table>
@@ -79,7 +88,8 @@
                 <th>Pend. / Jabatan</th>
                 <th>Unit Utama</th>
                 <th>Status</th>
-                <th>Capaian Kinerja</th> <th style="width: 100px; text-align:center;">Aksi</th>
+                <th>Capaian Kinerja</th> 
+                <th style="width: 100px; text-align:center;">Aksi</th>
             </tr>
         </thead>
         <tbody id="bodyTabel">
@@ -498,6 +508,106 @@
             });
         }
         body.innerHTML = html;
+    }
+
+    // ==========================================
+    // FUNGSI EXPORT KE EXCEL
+    // ==========================================
+    async function exportKaryawanExcel(event) {
+        if(dataKaryawan.length === 0) { 
+            alert("⚠️ Tidak ada data untuk didownload! Silakan tunggu sampai data selesai dimuat."); 
+            return; 
+        }
+        
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Menyusun Excel...";
+        btn.disabled = true;
+
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const ws = workbook.addWorksheet('Data_Karyawan');
+
+            // Header Tabel
+            ws.addRow([
+                "NO", "NIK", "NIP", "NAMA LENGKAP", "PENDIDIKAN", "JABATAN", "UNIT", "TMT", "STATUS", 
+                "GOLONGAN", "JAB. NON STRUKTURAL", "POLA KERJA", 
+                "PRODUKTIVITAS (%)", "DISIPLIN (%)", "SANKSI HUKUMAN (%)", 
+                "TIM 1", "JAB. TIM 1", "TIM 2", "JAB. TIM 2", "TIM 3", "JAB. TIM 3", "NO REKENING"
+            ]);
+
+            // Styling Header
+            const headerRow = ws.getRow(1);
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+            headerRow.eachCell((cell) => {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF004085' } };
+                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            });
+
+            // Input Data Baris demi Baris
+            dataKaryawan.forEach((k, index) => {
+                ws.addRow([
+                    index + 1,
+                    k.nik,
+                    k.nip || "-",
+                    k.nama,
+                    k.pendidikan || "-",
+                    k.jabatan || "-",
+                    k.unit || "-",
+                    k.tmt || "-",
+                    k.status || "-",
+                    k.golongan || "-",
+                    k.jab_non_struk || "-",
+                    k.pola_kerja || "-",
+                    (k.produktivitas || 0) * 100,
+                    (k.disiplin || 0) * 100,
+                    (k.hukuman || 0) * 100,
+                    k.tim1 || "-",
+                    k.jab_tim1 || "-",
+                    k.tim2 || "-",
+                    k.jab_tim2 || "-",
+                    k.tim3 || "-",
+                    k.jab_tim3 || "-",
+                    k.rekening || "-"
+                ]);
+            });
+
+            // Styling Body Table
+            ws.eachRow((row, rowNumber) => {
+                if(rowNumber > 1) {
+                    row.eachCell((cell, colNumber) => {
+                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                        cell.alignment = { vertical: 'middle' };
+                        // Center align specific columns (No, TMT, Status, dll)
+                        if([1, 8, 9, 10, 12, 13, 14, 15, 17, 19, 21].includes(colNumber)) {
+                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                        }
+                    });
+                }
+            });
+
+            // Lebar Kolom (Column Widths)
+            ws.columns = [
+                { width: 5 }, { width: 20 }, { width: 22 }, { width: 35 }, { width: 15 }, 
+                { width: 35 }, { width: 25 }, { width: 18 }, { width: 15 }, { width: 12 }, 
+                { width: 35 }, { width: 15 }, { width: 18 }, { width: 15 }, { width: 18 }, 
+                { width: 30 }, { width: 12 }, { width: 30 }, { width: 12 }, { width: 30 }, 
+                { width: 12 }, { width: 20 }
+            ];
+
+            // Generate dan Download File
+            const buffer = await workbook.xlsx.writeBuffer();
+            let dateStr = new Date().toISOString().slice(0,10);
+            saveAs(new Blob([buffer]), `Database_Induk_Karyawan_${dateStr}.xlsx`);
+
+        } catch (e) {
+            console.error(e);
+            alert("❌ Terjadi kesalahan saat menyusun Excel.");
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
     }
 
     function toggleGolongan() {
