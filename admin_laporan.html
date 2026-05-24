@@ -180,7 +180,7 @@
 
         const periodeLaporan = document.getElementById('periodeLaporan').value || "Periode Terkini";
 
-        // 1. Daftar Dokter Penunjang yang akan di-filter out (tidak dimasukkan ke PDF)
+        // Daftar Dokter Penunjang untuk di-exclude
         const dokterPenunjang = [
             "dr. bambang sasangka, sp. pk",
             "dr. dianing pratiwi, m.med.sc., sp. pk",
@@ -195,9 +195,14 @@
             
             let namaDokterLower = namaDokter.toLowerCase();
             
+            // Filter Dokter Penunjang
             if (dokterPenunjang.includes(namaDokterLower)) return;
 
-            if(namaDokterLower.includes("dr.") || namaDokterLower.includes("drg.")) {
+            // Regex fleksibel: Mencari dr/drg yang diikuti titik, spasi, atau langsung nama
+            const isDokterValid = /^(dr\.|drg\.|dr |drg )/.test(namaDokterLower) || 
+                                  namaDokterLower.startsWith("dr ");
+
+            if(isDokterValid || namaDokterLower.includes("dr.") || namaDokterLower.includes("drg.")) {
                 if(!groupedDPJP[namaDokter]) groupedDPJP[namaDokter] = { "RAWAT INAP": [], "RAWAT JALAN": [] };
                 if(groupedDPJP[namaDokter][p.layanan]) { groupedDPJP[namaDokter][p.layanan].push(p); }
             }
@@ -208,7 +213,6 @@
             styles: {
                 headerTitle: { fontSize: 14, bold: true, margin: [0, 5, 0, 5] },
                 sectionTitle: { fontSize: 11, bold: true, margin: [0, 15, 0, 5], color: '#004085' },
-                infoText: { fontSize: 10, margin: [0, 0, 0, 10] },
                 tableHeader: { bold: true, fontSize: 8, color: 'black', fillColor: '#eeeeee', alignment: 'center', margin: [0, 4, 0, 4] },
                 tableCell: { fontSize: 8, margin: [0, 3, 0, 3] },
                 tableCellCenter: { fontSize: 8, alignment: 'center', margin: [0, 3, 0, 3] },
@@ -220,11 +224,10 @@
 
         let isFirstPage = true;
 
-        // PENGURUTAN KHUSUS: Spesialis ("Sp.") Lebih Dulu, Baru Dokter Umum
+        // PENGURUTAN: Spesialis ("Sp.") > Umum
         let sortedDokterList = Object.keys(groupedDPJP).sort((a, b) => {
             let isSpesialisA = a.toLowerCase().includes("sp.");
             let isSpesialisB = b.toLowerCase().includes("sp.");
-            
             if (isSpesialisA && !isSpesialisB) return -1;
             if (!isSpesialisA && isSpesialisB) return 1;
             return a.localeCompare(b);
@@ -244,43 +247,38 @@
 
             ["RAWAT INAP", "RAWAT JALAN"].forEach(kat => {
                 let list = groupedDPJP[dokter][kat];
-                if(list.length === 0) return;
+                if(!list || list.length === 0) return;
 
                 docDefinition.content.push({ text: `Kategori: ${kat}`, style: 'sectionTitle' });
 
                 let tableBody = [
-                    [
-                        { text: 'No', style: 'tableHeader' }, { text: 'Tanggal', style: 'tableHeader' }, { text: 'Nama Pasien', style: 'tableHeader' },
-                        { text: 'Peran', style: 'tableHeader' }, { text: 'Tipe', style: 'tableHeader' }, { text: 'Status', style: 'tableHeader' },
-                        { text: 'Tarif (Rp)', style: 'tableHeader' }, { text: 'Jasa (Rp)', style: 'tableHeader' }
-                    ]
+                    [{ text: 'No', style: 'tableHeader' }, { text: 'Tanggal', style: 'tableHeader' }, { text: 'Nama Pasien', style: 'tableHeader' },
+                     { text: 'Peran', style: 'tableHeader' }, { text: 'Status', style: 'tableHeader' }, { text: 'Jasa (Rp)', style: 'tableHeader' }]
                 ];
 
-                let totalTarif = 0; let totalJasa = 0;
-
+                let totalJasa = 0;
                 list.forEach((p, i) => {
                     let tanggalStr = p.tanggal;
                     try { if(tanggalStr && tanggalStr.length > 10) tanggalStr = tanggalStr.substring(0, 10); } catch(e) {}
-
-                    let statusLabel = (p.status_klaim || "Pending").toUpperCase();
-                    let statusColor = (statusLabel === "LUNAS" || statusLabel === "SELESAI" || statusLabel === "DISETUJUI") ? 'green' : 'red';
-                    totalTarif += p.tarif; totalJasa += p.jasa_medik;
-
+                    
+                    totalJasa += p.jasa_medik;
                     tableBody.push([
-                        { text: i + 1, style: 'tableCellCenter' }, { text: tanggalStr, style: 'tableCellCenter' },
-                        { text: p.nama, style: 'tableCell' }, { text: p.peran, style: 'tableCellCenter', bold: true },
-                        { text: p.pembayaran, style: 'tableCellCenter' }, { text: statusLabel, style: 'tableCellCenter', color: statusColor, bold: true },
-                        { text: formatRpBulat(p.tarif), style: 'tableCellRight' }, { text: formatRpBulat(p.jasa_medik), style: 'tableCellRight' }
+                        { text: i + 1, style: 'tableCellCenter' }, 
+                        { text: tanggalStr, style: 'tableCellCenter' },
+                        { text: p.nama, style: 'tableCell' }, 
+                        { text: p.peran, style: 'tableCellCenter' }, 
+                        { text: (p.status_klaim || "Pending").toUpperCase(), style: 'tableCellCenter' },
+                        { text: formatRpBulat(p.jasa_medik), style: 'tableCellRight' }
                     ]);
                 });
 
                 tableBody.push([
-                    { text: `Total ${kat}`, style: 'tableFooter', colSpan: 6 }, {}, {}, {}, {}, {},
-                    { text: formatRpBulat(totalTarif), style: 'tableFooter' }, { text: formatRpBulat(totalJasa), style: 'tableFooter' }
+                    { text: `Total ${kat}`, style: 'tableFooter', colSpan: 5 }, {}, {}, {}, {},
+                    { text: formatRpBulat(totalJasa), style: 'tableFooter' }
                 ]);
 
                 docDefinition.content.push({
-                    table: { headerRows: 1, widths: [15, 45, '*', 35, 35, 40, 50, 55], body: tableBody },
+                    table: { headerRows: 1, widths: [15, 60, '*', 50, 60, 70], body: tableBody },
                     layout: 'lightHorizontalLines'
                 });
                 
@@ -288,20 +286,20 @@
             });
 
             docDefinition.content.push(
-                { text: `GRAND TOTAL JASA PELAYANAN : Rp ${formatRpBulat(grandTotalSemuaJasa)}`, style: 'grandTotalInfo' }
+                { text: `GRAND TOTAL JASA DOKTER : Rp ${formatRpBulat(grandTotalSemuaJasa)}`, style: 'grandTotalInfo' }
             );
 
             isFirstPage = false;
         });
 
         if(docDefinition.content.length === 0) {
-            alert("⚠️ Tidak ada data dokter DPJP yang bisa dicetak.");
+            alert("⚠️ Tidak ada data dokter yang bisa dicetak.");
             btn.innerText = "📄 Download Rincian DPJP (PDF)"; btn.disabled = false;
             return;
         }
 
         try { pdfMake.createPdf(docDefinition).download(`Rincian_DPJP_${periodeLaporan.replace(/\s+/g, '_')}.pdf`); } 
-        catch (e) { alert("Gagal membuat PDF."); console.error(e); } 
+        catch (e) { alert("Gagal membuat PDF."); } 
         finally { btn.innerText = "📄 Download Rincian DPJP (PDF)"; btn.disabled = false; }
     }
 
