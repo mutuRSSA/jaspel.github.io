@@ -168,19 +168,28 @@
                     if (strVal.includes("PUSPITA")) return "dr. Puspita Sari, Sp. OG";
                     if (strVal.includes("WENY")) return "dr. Weny Inrianto, M.Sc, Sp.A";
                     if (strVal.includes("DEWI HAYU")) return "dr. Dewi Hayu Kirana, Sp.N";
-                    if (strVal.includes("ARIF") || strVal.includes("SETYO")) return "dr Arif Setyo Wibowo, Sp.An.TI";
                     if (strVal.includes("BAMBANG")) return "dr. Bambang Sasangka, Sp. PK";
                     if (strVal.includes("ANDIKA")) return "dr. Andika Setyawan, Sp. Rad";
                     if (strVal.includes("DIANING")) return "dr. Dianing Pratiwi, M.Med.Sc., Sp. PK";
                     if (strVal.includes("NURUL") || strVal.includes("KHAFIDZ")) return "dr. Nurul Khafidz Subekti";
                     if (strVal.includes("GERDA")) return "dr. Gerda Bina Larasati";
-                    if (strVal.includes("IRAWAN") || strVal === "UGD") return "dr. Irawan Jati Asmara";
                     if (strVal.includes("MIRDZA")) return "dr. Muhammad Mirdza";
                     if (strVal.includes("DYAH") || strVal.includes("CHANDRA")) return "dr. Dyah Chandra Suwastiko Putri";
-                    if (strVal.includes("HUSNI")) return "dr. Husni Muarif";
                     if (strVal.includes("HENDRISA")) return "dr. Hendrisa Heppy Natalina";
                     if (strVal.includes("TRI WIDJAJA")) return "dr. Tri Widjaja";
-                    if (strVal.includes("KRISWAHYU") || strVal.includes("YUDO")) return "dr. Kriswahyu Yudo Wirawan";
+                    
+                    // === PERBAIKAN URUTAN (PRIORITAS PENGECEKAN) ===
+                    
+                    // Pengecekan HUSNI didahulukan agar tidak tumpang tindih dengan "ARIF" (Husni Mu'ARIF')
+                    if (strVal.includes("HUSNI") || strVal.includes("MUARIF")) return "dr. Husni Muarif";
+                    if (strVal.includes("ARIF") || strVal.includes("SETYO")) return "dr Arif Setyo Wibowo, Sp.An.TI";
+                    
+                    // Pengecekan KRISWAHYU / WIRAWAN didahulukan agar tidak tumpang tindih dengan "IRAWAN"
+                    if (strVal.includes("KRISWAHYU") || strVal.includes("YUDO") || strVal.includes("WIRAWAN")) return "dr. Kriswahyu Yudo Wirawan";
+                    if (strVal.includes("IRAWAN") || strVal === "UGD") return "dr. Irawan Jati Asmara";
+                    
+                    // ===============================================
+
                     if (strVal.includes("GUNTUR") || strVal.includes("LABIBBASIL")) return "Guntur Labibbasil Al Rai S.Ftr.";
                 }
 
