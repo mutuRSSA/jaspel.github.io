@@ -304,11 +304,24 @@
     }
 
     // ==============================================================
-    // GENERATOR EXCEL DENGAN PENGURUTAN CUSTOM & PAJAK PINTAR
+    // GENERATOR EXCEL DENGAN GRAND TOTAL & DB KARYAWAN
     // ==============================================================
     async function exportSPJExcel(event) {
         if(dataFiltered.length === 0) { alert("Tidak ada data untuk diekspor!"); return; }
-        const btn = event.target; btn.innerText = "⏳ Sedang Menyusun Excel..."; btn.disabled = true;
+        const btn = event.target; 
+        
+        btn.innerText = "⏳ Mengambil Database Karyawan..."; btn.disabled = true;
+        let dataKaryawanUtuh = [];
+        try {
+            const reqKar = await fetch(WEB_APP_URL, { 
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                body: JSON.stringify({ action: "get_karyawan" }) 
+            });
+            const resKar = await reqKar.json();
+            if (resKar.status === "success") dataKaryawanUtuh = resKar.data;
+        } catch(e) { console.warn("Gagal mengambil DB Karyawan"); }
+
+        btn.innerText = "⏳ Sedang Menyusun Excel...";
 
         const periodeLaporan = document.getElementById('periodeLaporan').value || "Periode Terkini";
 
@@ -339,6 +352,7 @@
                 return String(a.nama).localeCompare(String(b.nama)); 
             });
 
+            // ================= SHEET 1 =================
             const ws1 = workbook.addWorksheet('SPJ_Jaspel');
             ws1.getCell('A1').value = "DAFTAR PENERIMAAN INSENTIF JASA PELAYANAN";
             ws1.getCell('A2').value = "RUMAH SAKIT UMUM DAERAH SARAS ADYATMA"; 
@@ -377,22 +391,39 @@
                 row1Index++;
             });
 
-            for(let r = 5; r < row1Index; r++) {
+            // PENAMBAHAN: Baris Grand Total di bawah SPJ
+            ws1.mergeCells(`A${row1Index}:G${row1Index}`);
+            let grandTotalRow = ws1.getRow(row1Index);
+            grandTotalRow.getCell('A').value = "GRAND TOTAL";
+            grandTotalRow.getCell('A').alignment = { horizontal: 'center', vertical: 'middle' };
+            grandTotalRow.getCell('A').font = { bold: true, size: 12 };
+            
+            ['H', 'K', 'L', 'M', 'N', 'O'].forEach(col => {
+                let cell = grandTotalRow.getCell(col);
+                cell.value = { formula: `SUM(${col}7:${col}${row1Index-1})` };
+                cell.font = { bold: true, size: 12 };
+                cell.numFmt = '#,##0';
+            });
+            
+            // Format Borders untuk semua baris (termasuk Grand Total)
+            for(let r = 5; r <= row1Index; r++) {
                 let row = ws1.getRow(r);
                 row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                     if(colNumber <= 17) { 
-                        cell.font = { name: 'Arial', size: 12, bold: (r <= 6) }; 
-                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                        if(r <= 6) cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; 
-                        else {
-                            cell.alignment = { vertical: 'middle' };
-                            if([8, 11, 12, 13, 14, 15].includes(colNumber)) cell.numFmt = '#,##0'; 
-                            if([1, 5, 6, 7, 9, 10].includes(colNumber)) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                        if(r <= 6) {
+                            cell.font = { name: 'Arial', size: 12, bold: true }; 
+                            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; 
+                        } else {
+                            if(r !== row1Index) cell.alignment = { vertical: 'middle' }; // Bukan baris Grand Total
+                            if([8, 11, 12, 13, 14, 15].includes(colNumber) && r !== row1Index) cell.numFmt = '#,##0'; 
+                            if([1, 5, 6, 7, 9, 10].includes(colNumber) && r !== row1Index) cell.alignment = { horizontal: 'center', vertical: 'middle' };
                         }
+                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                     }
                 });
             }
 
+            row1Index++; // Menurunkan posisi tanda tangan
             let sigRow = row1Index + 3; 
             ws1.getCell(`B${sigRow}`).value = "Mengetahui,"; ws1.getCell(`B${sigRow + 1}`).value = "Direktur RSUD Saras Adyatma";
             ws1.getCell(`B${sigRow + 5}`).value = "drg. TRI WAHYUNI, MPH"; ws1.getCell(`B${sigRow + 6}`).value = "NIP 198407112009032010";
@@ -442,6 +473,74 @@
             }
             ws2.columns = [{ width: 6 }, { width: 35 }, { width: 25 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 22 }, { width: 22 }];
 
+            // ================= SHEET 3 =================
+            const ws3 = workbook.addWorksheet('Daftar_Pasien');
+            ws3.getCell('A1').value = "LAMPIRAN DAFTAR PASIEN JASA PELAYANAN";
+            ws3.getCell('A2').value = `PERIODE PELAYANAN: ${periodeLaporan.toUpperCase()}`;
+            for(let i=1; i<=2; i++) {
+                ws3.mergeCells(`A${i}:G${i}`);
+                ws3.getCell(`A${i}`).font = { name: 'Arial', size: 12, bold: true };
+                ws3.getCell(`A${i}`).alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+            ws3.getRow(4).values = ["NO", "LAYANAN/UNIT", "NO RM", "NAMA PASIEN", "DOKTER DPJP / PEMERIKSA", "STATUS KLAIM", "TARIF KLAIM (Rp)"];
+            
+            let row3Index = 5; let totalTarifSheet3 = 0;
+            dataPasienLampiran.forEach((p, index) => {
+                ws3.getRow(row3Index).values = [ index + 1, p.layanan, p.rm, p.nama, p.dokter, p.status_klaim.toUpperCase(), p.tarif ];
+                totalTarifSheet3 += p.tarif; row3Index++;
+            });
+            ws3.getRow(row3Index).values = [null, "TOTAL TARIF", null, null, null, null, totalTarifSheet3];
+            ws3.mergeCells(`A${row3Index}:F${row3Index}`);
+
+            for(let r = 4; r <= row3Index; r++) {
+                ws3.getRow(r).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    if(colNumber <= 7) { 
+                        cell.font = { name: 'Arial', size: 11, bold: (r === 4 || r === row3Index) }; 
+                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                        cell.alignment = { vertical: 'middle' };
+                        
+                        if(r === 4) cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                        else {
+                            if(colNumber === 7) cell.numFmt = '#,##0'; 
+                            if(colNumber === 1 || colNumber === 3 || colNumber === 6) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                            
+                            if(colNumber === 6 && r !== row3Index) {
+                                let valStatus = cell.value;
+                                if(valStatus === "LUNAS" || valStatus === "SELESAI" || valStatus === "DISETUJUI") cell.font = { color: { argb: 'FF008000' } }; 
+                                else cell.font = { color: { argb: 'FFFF0000' } }; 
+                            }
+                        }
+                        if(r === row3Index && colNumber === 1) cell.alignment = { horizontal: 'right', vertical: 'middle' }; 
+                    }
+                });
+            }
+            ws3.columns = [{ width: 6 }, { width: 20 }, { width: 15 }, { width: 35 }, { width: 35 }, { width: 18 }, { width: 22 }];
+
+            // ================= SHEET 4 : DB INDUK KARYAWAN =================
+            if(dataKaryawanUtuh.length > 0) {
+                const ws4 = workbook.addWorksheet('DB_Induk_Karyawan');
+                ws4.addRow(["NIK", "NIP", "NAMA KARYAWAN", "PENDIDIKAN", "JABATAN", "UNIT UTAMA", "TMT", "STATUS", "GOLONGAN", "NO REKENING", "PRODUKTIVITAS", "DISIPLIN"]);
+                
+                let headerRow4 = ws4.getRow(1);
+                headerRow4.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                headerRow4.alignment = { horizontal: 'center', vertical: 'middle' };
+                headerRow4.eachCell(cell => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF004085' } };
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                });
+
+                dataKaryawanUtuh.forEach(k => {
+                    ws4.addRow([k.nik, k.nip || "-", k.nama, k.pendidikan, k.jabatan, k.unit, k.tmt, k.status, k.golongan, k.rekening, k.produktivitas, k.disiplin]);
+                });
+
+                ws4.eachRow((row, rowNumber) => {
+                    if(rowNumber > 1) {
+                        row.eachCell(cell => { cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }; });
+                    }
+                });
+                ws4.columns = [{ width: 20 }, { width: 22 }, { width: 35 }, { width: 15 }, { width: 35 }, { width: 25 }, { width: 18 }, { width: 15 }, { width: 12 }, { width: 20 }, { width: 15 }, { width: 15 }];
+            }
+
             const buffer = await workbook.xlsx.writeBuffer();
             saveAs(new Blob([buffer]), `SPJ_Jaspel_${periodeLaporan.replace(/\s+/g, '_')}.xlsx`);
 
@@ -470,7 +569,6 @@
         document.getElementById('footerTabel').innerHTML = '';
         
         try {
-            // Memanggil action arsipkan_laporan yang HANYA mengunci status jadi 'Terbayarkan' dan simpan ke Arsip internal
             const response = await fetch(WEB_APP_URL, { 
                 method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, 
                 body: JSON.stringify({ action: "arsipkan_laporan", periode: periodeLaporan }) 
@@ -491,31 +589,60 @@
     }
 
     // ==============================================================
-    // FUNGSI CETAK SLIP KARYAWAN (PDF) DARI DATA ARSIP INTERNAL
+    // FUNGSI CETAK SLIP KARYAWAN BERURUTAN (BYPASS TIMEOUT)
     // ==============================================================
     async function cetakSlipKaryawan(event) {
         const periodeLaporan = document.getElementById('periodeLaporan').value || "Periode Terkini";
         
-        let konfirmasi = confirm(`🖨️ Cetak Slip Karyawan?\n\nSistem akan men-generate dokumen PDF Slip Jaspel untuk periode [${periodeLaporan}].\n\nPastikan Anda SUDAH melakukan klik "Finalisasi Laporan" terlebih dahulu agar data slip tersedia. Lanjutkan?`);
+        let konfirmasi = confirm(`🖨️ Cetak Slip Karyawan?\n\nSistem akan men-generate dokumen PDF Slip Jaspel untuk periode [${periodeLaporan}].\n\nProses ini akan mencetak slip satu per satu agar tidak terjadi error waktu habis (Timeout).\nLanjutkan?`);
         if(!konfirmasi) return;
 
         const btn = event.target;
         const originalText = btn.innerText;
-        btn.innerText = "⏳ Sedang Mencetak Slip..."; 
+        btn.innerText = "⏳ Memuat Daftar Karyawan..."; 
         btn.disabled = true;
 
         try {
-            const response = await fetch(WEB_APP_URL, { 
+            const responseArsip = await fetch(WEB_APP_URL, { 
                 method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, 
-                body: JSON.stringify({ action: "cetak_pdf", periode: periodeLaporan }) 
+                body: JSON.stringify({ action: "get_data_arsip", periode: periodeLaporan }) 
             });
-            const res = await response.json();
+            const resArsip = await responseArsip.json();
             
-            if(res.status === "success") {
-                alert("✅ PENCETAKAN BERHASIL!\n\n" + res.message + "\n\nSilakan buka Google Drive (Folder Slip) untuk melihat file PDF yang telah jadi.");
-            } else {
-                alert("❌ Gagal: " + res.message);
+            if(resArsip.status !== "success" || !resArsip.data || resArsip.data.karyawan.length === 0) {
+                alert("❌ Data arsip karyawan tidak ditemukan. Pastikan Anda sudah melakukan Finalisasi Laporan.");
+                btn.innerText = originalText; btn.disabled = false;
+                return;
             }
+
+            const karyawanCair = resArsip.data.karyawan.filter(k => Number(k.total) > 0);
+            if(karyawanCair.length === 0) {
+                alert("⚠️ Tidak ada karyawan yang menerima Jaspel (> Rp 0) pada periode ini.");
+                btn.innerText = originalText; btn.disabled = false;
+                return;
+            }
+
+            let sukses = 0;
+            let gagal = 0;
+            for (let i = 0; i < karyawanCair.length; i++) {
+                const emp = karyawanCair[i];
+                btn.innerText = `⏳ Mencetak ${i + 1} dari ${karyawanCair.length}...`;
+                
+                try {
+                    const req = await fetch(WEB_APP_URL, {
+                        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: "cetak_pdf_single", periode: periodeLaporan, employee: emp })
+                    });
+                    const res = await req.json();
+                    if(res.status === "success") sukses++;
+                    else gagal++;
+                } catch(e) {
+                    gagal++;
+                }
+            }
+
+            alert(`✅ PENCETAKAN SELESAI!\n\nBerhasil: ${sukses} slip\nGagal: ${gagal} slip\n\nSilakan buka Google Drive untuk melihat file PDF yang telah jadi di dalam folder ${periodeLaporan}.`);
+
         } catch (e) {
             alert("❌ Terjadi kesalahan koneksi saat memproses pencetakan slip PDF.");
         } finally {
