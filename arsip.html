@@ -6,7 +6,7 @@
     <title>Manajemen Arsip & Cold Storage</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; padding: 20px; font-size: 13px; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; margin-bottom: 20px;}
         
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px;}
         .header-title { margin: 0; color: #004085; font-size: 22px; display:flex; align-items:center; gap:10px;}
@@ -22,6 +22,8 @@
         .btn-primary:hover { background: #0056b3; }
         .btn-danger { background: #dc3545; color: white; }
         .btn-danger:hover { background: #c82333; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
         .btn-open { background: #17a2b8; color: white; font-size: 12px; text-decoration: none; padding: 6px 12px; border-radius: 4px; display: inline-block;}
         .btn-open:hover { background: #138496; }
         .btn:disabled { background: #6c757d; cursor: not-allowed; }
@@ -45,6 +47,7 @@
 
 <script>renderNavbar();</script>
 
+<!-- KARTU 1: MANAJEMEN BACKUP -->
 <div class="card">
     <div class="header">
         <h2 class="header-title">🗄️ Manajemen Cold Storage</h2>
@@ -83,7 +86,42 @@
             </tbody>
         </table>
     </div>
+</div>
 
+<!-- KARTU 2: RESTORE PASIEN VPK -->
+<div class="card">
+    <div class="header">
+        <h2 class="header-title">🔎 Pencarian & Pemulihan Pasien (VPK)</h2>
+    </div>
+
+    <div class="alert-info" style="background: #e2e3e5; color: #383d41; border-color: #d6d8db;">
+        💡 <b>Fungsi:</b> Cari pasien lama yang berstatus VPK (Verifikasi Pending Klaim) di dalam seluruh file arsip Drive Anda, lalu tarik kembali datanya ke tabel utama untuk diproses pencairannya bulan ini.
+    </div>
+
+    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 20px;">
+        <input type="text" id="keywordVPK" placeholder="Ketik Nama Pasien atau No RM..." style="width: 300px;">
+        <button class="btn btn-primary" id="btnCariVPK" onclick="cariVPK()" style="padding: 12px 25px; font-size: 14px;">🔍 Cari di Arsip Drive</button>
+    </div>
+
+    <div style="overflow-x: auto; border: 1px solid #eee; border-radius: 8px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Kode Unik</th>
+                    <th>Tgl Layanan</th>
+                    <th>No RM</th>
+                    <th>Nama Pasien</th>
+                    <th>Layanan/Unit</th>
+                    <th>Dokter</th>
+                    <th>Ditemukan Pada File</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="tabelHasilVPK">
+                <tr><td colspan="8" class="text-center" style="padding: 30px; color: #666;">Silakan masukkan kata kunci dan lakukan pencarian...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
@@ -92,11 +130,13 @@
         muatDaftarArsip();
     };
 
+    // ==============================================================
+    // FUNGSI 1: MANAJEMEN DRIVE ARSIP
+    // ==============================================================
     async function muatDaftarArsip() {
         const tbody = document.getElementById('tabelArsipDrive');
         const barisLoading = '<tr><td colspan="3" class="text-center" style="padding: 30px; color: #666;">⏳ Memuat riwayat arsip dari Drive...</td></tr>';
         
-        // Cek apakah ini muat awal atau refresh
         if(tbody.innerHTML.trim() === "") tbody.innerHTML = barisLoading;
 
         try {
@@ -106,12 +146,16 @@
             });
             const res = await response.json();
             
+            if (res.status === "error") {
+                console.error("Backend Error:", res.message);
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="padding: 30px; color: red;">❌ Akses Ditolak: ${res.message}<br><small>Pastikan FOLDER_BACKUP_ID di Code.gs sudah benar.</small></td></tr>`;
+                return;
+            }
+            
             let html = "";
-            if(res.data.length === 0) {
+            if(!res.data || res.data.length === 0) {
                 html = '<tr><td colspan="3" class="text-center" style="padding: 30px; color: #666;">Belum ada file arsip tersimpan di Drive Anda.</td></tr>';
             } else {
-                // Tampilkan data, reverse() tidak diperlukan jika backend mengembalikannya berurutan, 
-                // tapi kita tambahkan untuk berjaga-jaga agar file terbaru di atas.
                 res.data.reverse().forEach(file => {
                     html += `<tr>
                         <td><b style="color:#004085; font-size: 14px;">📄 ${file.nama}</b></td>
@@ -122,7 +166,8 @@
             }
             tbody.innerHTML = html;
         } catch (e) { 
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center" style="padding: 30px; color: red;">❌ Gagal terhubung ke Google Drive. Periksa koneksi internet Anda.</td></tr>'; 
+            console.error("Fatal Crash:", e);
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="padding: 30px; color: red;">❌ Terjadi kesalahan Sistem: ${e.message}</td></tr>`; 
         }
     }
 
@@ -133,10 +178,10 @@
             return;
         }
         
-        if(!confirm(`⚠️ PERINGATAN KRUSIAL!\n\nSistem akan membackup data "${per}" ke Drive dan menghapus data pasien bulan tersebut dari file utama secara permanen.\n\nPastikan semua data sudah terinput dengan benar. Lanjutkan?`)) return;
+        if(!confirm(`⚠️ PERINGATAN KRUSIAL!\n\nSistem akan membackup data "${per}" ke Drive dan menghapus data pasien bulan tersebut dari file utama secara permanen.\n\nKarena data sangat besar, proses fotokopi ini memakan waktu cukup lama. Lanjutkan?`)) return;
 
         const btn = document.getElementById('btnRun');
-        btn.innerText = "⏳ Sedang Memproses Backup..."; 
+        btn.innerText = "⏳ Memproses Backup (Jangan tutup layar)..."; 
         btn.disabled = true;
 
         try {
@@ -148,17 +193,100 @@
             
             if (res.status === "success") {
                 alert("✅ " + res.message);
-                document.getElementById('periodeInput').value = ""; // Kosongkan input
-                muatDaftarArsip(); // Segarkan tabel Drive
+                document.getElementById('periodeInput').value = ""; 
+                muatDaftarArsip(); 
             } else {
                 alert("❌ GAGAL: " + res.message);
             }
             
         } catch (e) { 
-            alert("❌ Terjadi kesalahan saat memproses backup. Server Google mungkin sibuk, coba beberapa saat lagi."); 
+            // JIKA BROWSER KEHABISAN WAKTU (TIMEOUT) TAPI GOOGLE MASIH BEKERJA
+            console.warn("Koneksi terputus (Timeout), tapi proses sedang berjalan di latar belakang:", e);
+            alert(`⏳ KONEKSI TERPUTUS KARENA PROSES SANGAT BESAR\n\nBrowser Anda kehabisan waktu saat menunggu Google menyalin file Excel Anda. \n\nJangan panik! Server Google kemungkinan besar TETAP MELANJUTKAN backup di latar belakang.\n\nSilakan tunggu sekitar 1-2 menit, lalu klik tombol "🔄 Segarkan Daftar" untuk melihat hasilnya.`); 
+            document.getElementById('periodeInput').value = ""; 
         } finally { 
             btn.innerText = "📁 Eksekusi Backup & Purge Data"; 
             btn.disabled = false; 
+        }
+    }
+
+    // ==============================================================
+    // FUNGSI 2: PENCARIAN & PEMULIHAN PASIEN VPK
+    // ==============================================================
+    async function cariVPK() {
+        const keyword = document.getElementById('keywordVPK').value.trim();
+        if (!keyword) { alert("⚠️ Masukkan kata kunci pencarian (Nama atau No RM)!"); return; }
+
+        const tbody = document.getElementById('tabelHasilVPK');
+        const btn = document.getElementById('btnCariVPK');
+        
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 30px; color: #666;">⏳ Sedang membongkar arsip Drive (Ini mungkin memakan waktu beberapa detik)...</td></tr>';
+        btn.innerText = "⏳ Mencari..."; btn.disabled = true;
+
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "cari_pasien_arsip", keyword: keyword })
+            });
+            const res = await response.json();
+            
+            if (res.status === "success") {
+                if (res.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 30px; color: #dc3545;">❌ Pasien tidak ditemukan di seluruh arsip Drive.</td></tr>';
+                } else {
+                    let html = "";
+                    res.data.forEach(p => {
+                        html += `<tr>
+                            <td style="color:#6c757d; font-size:12px;">${p.kode_no}</td>
+                            <td>${p.tanggal}</td>
+                            <td>${p.rm}</td>
+                            <td style="font-weight:bold; color:#333;">${p.nama}</td>
+                            <td>${p.layanan}</td>
+                            <td>${p.dokter}</td>
+                            <td style="color:#17a2b8; font-size:12px;">📄 ${p.file_arsip}</td>
+                            <td class="text-center">
+                                <button class="btn btn-success" style="padding: 6px 12px; font-size: 11px;" onclick="tarikVPK('${p.kode_no}', this)">📥 Tarik (VPK)</button>
+                            </td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                }
+            } else {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 30px; color: red;">❌ Gagal mencari: ${res.message}</td></tr>`;
+            }
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 30px; color: red;">❌ Terjadi kesalahan jaringan. Cek console.</td></tr>`;
+        } finally {
+            btn.innerText = "🔍 Cari di Arsip Drive"; btn.disabled = false;
+        }
+    }
+
+    async function tarikVPK(kodeNo, btnElem) {
+        if (!confirm(`Apakah Anda yakin ingin menarik data pasien dengan kode [${kodeNo}] dari arsip ke tabel utama sebagai VPK?`)) return;
+        
+        const originalText = btnElem.innerText;
+        btnElem.innerText = "⏳ Menarik..."; 
+        btnElem.disabled = true;
+
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "tarik_dari_arsip", kode_no: kodeNo })
+            });
+            const res = await response.json();
+            
+            if (res.status === "success") {
+                alert(res.message);
+                btnElem.innerText = "✅ Ditarik";
+                btnElem.style.background = "#6c757d"; // Ubah warna jadi abu-abu menandakan sudah selesai
+                btnElem.disabled = true; // Disable tombol agar tidak ditarik 2 kali
+            } else {
+                alert("❌ GAGAL: " + res.message);
+                btnElem.innerText = originalText; btnElem.disabled = false;
+            }
+        } catch (e) {
+            alert("❌ Terjadi kesalahan jaringan.");
+            btnElem.innerText = originalText; btnElem.disabled = false;
         }
     }
 </script>
